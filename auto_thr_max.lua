@@ -78,8 +78,10 @@ function set_thr_max(thr_max)
     
     if param:set("THR_MAX", thr_max) then
         gcs:send_text(6, string.format("THR_MAX successfully set to %.2f%%", thr_max))
+        return true
     else
         gcs:send_text(6, "Faild to set THR_MAX")
+        return false
     end
 
 end
@@ -91,7 +93,9 @@ function switch_command(cmd, arg1, arg2)
         local thr_max = set_pitch_and_get_throttle_at_cruise()
         if thr_max then
             gcs:send_text(6, string.format("Final THR_MAX: %.2f%%", thr_max))
-            set_thr_max(thr_max)
+            if set_thr_max(thr_max) then
+                return nil  -- THR_MAXが設定されたらスクリプトを終了
+            end
         else
             gcs:send_text(6, "THR_MAX retrieve failed")
         end
@@ -101,6 +105,10 @@ function switch_command(cmd, arg1, arg2)
 end
 
 function update_thr_max()
+
+    vehicle:set_mode(5) -- 5:FBWA
+    gcs:send_text(6, "Switched to FBWA mode")
+
     local id, cmd, arg1, arg2 = vehicle:nav_script_time()
 
     if id then
@@ -110,7 +118,7 @@ function update_thr_max()
         gcs:send_text(6, "No command received")
     end
 
-    return update_thr_max, 500   --0.5秒ごとに確認
+    return update_thr_max, 1000   --1秒ごとに確認
 
 end
 

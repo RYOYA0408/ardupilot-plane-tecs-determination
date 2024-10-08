@@ -3,8 +3,8 @@
 --　各種設定
 local airspeed_cruise = param:get("ARSPD_FBW_MIN")  -- AIRSPEED_CRUISEに相当？
 local airspeed_error = 1.5  --速度判定の許容誤差
---local tas = ahrs:get_EAS2TAS()  -- 現在の真対気速度
 local elev_servo_channel = 2
+local mode_switch = false   -- モード切替を一度だけ行うためのフラグ
 
 -- スロットルサーボからスロットル率に変換
 function get_throttle()
@@ -107,16 +107,21 @@ function switch_command(cmd, arg1, arg2)
 end
 
 function update_thr_max()
+    -- フライトモードを切替
+    if not mode_switch then
+        vehicle:set_mode(5) -- 5:FBWA
+        gcs:send_text(6, "Switched to FBWA mode")
+        mode_switch = true  --フラグ立て,次回以降省略
+    end
 
+    -- コマンド監視
     local id, cmd, arg1, arg2 = vehicle:nav_script_time()
-
     if id then
         gcs:send_text(6, string.format("Received cmd: %d", cmd))
         switch_command(cmd, arg1, arg2)
-        vehicle:set_mode(5) -- 5:FBWA
-        gcs:send_text(6, "Switched to FBWA mode")
     else 
         gcs:send_text(6, "No command received")
+        --gcs:send_text(6, string.format("throttle: %d", param:))
     end
 
     return update_thr_max, 1000   --1秒ごとに確認

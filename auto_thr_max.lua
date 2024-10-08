@@ -116,7 +116,7 @@ function update_thr_max()
 
 end
 
-return update()
+return update_thr_max()
 
 --[[
 -- cmd値を取得

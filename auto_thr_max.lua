@@ -78,6 +78,8 @@ function set_thr_max(thr_max)
     
     if param:set("THR_MAX", thr_max) then
         gcs:send_text(6, string.format("THR_MAX successfully set to %.2f%%", thr_max))
+        vehicle:set_mode(10) -- 10: AUTOモードに切り替え
+        gcs:send_text(6, "Switched to AUTO mode")
         return true
     else
         gcs:send_text(6, "Faild to set THR_MAX")
@@ -106,14 +108,13 @@ end
 
 function update_thr_max()
 
-    vehicle:set_mode(5) -- 5:FBWA
-    gcs:send_text(6, "Switched to FBWA mode")
-
     local id, cmd, arg1, arg2 = vehicle:nav_script_time()
 
     if id then
         gcs:send_text(6, string.format("Received cmd: %d", cmd))
         switch_command(cmd, arg1, arg2)
+        vehicle:set_mode(5) -- 5:FBWA
+        gcs:send_text(6, "Switched to FBWA mode")
     else 
         gcs:send_text(6, "No command received")
     end

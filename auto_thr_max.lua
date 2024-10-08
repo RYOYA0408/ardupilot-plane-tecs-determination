@@ -23,7 +23,7 @@ end
 -- エレベータサーボの最大 PWM 値を取得する関数
 function get_elev_rc_max(channel)
     
-    local rc_max = param:get(string.format("SERV0%d_MIN", channel))   -- パラメータの値を MP から取得
+    local rc_max = param:get(string.format("SERVO%d_MIN", channel))   -- パラメータの値を MP から取得
     
     if rc_max then
         gcs:send_text(6, string.format("MIN PWM for servo channel %d: %d", channel, rc_max))    -- MPに送信
@@ -55,25 +55,22 @@ function set_pitch_and_get_throttle_at_cruise()
     set_servo_to_pitch_max(elev_servo_channel)  -- 最大ピッチ角でのPWM値を取得
 
     -- 速度がAIRSPEED_CRUISEに達するまで監視
-    while true do
-        local current_tas = ahrs:get_EAS2TAS() -- 現在の真対気速度を取得
-        gcs:send_text(6, string.format("Current TAS: %.2f", current_tas))
+    local current_eas = ahrs:airspeed_estimate()
+    local current_tas = current_eas * ahrs:get_EAS2TAS() -- 現在の真対気速度を取得
+    gcs:send_text(6, string.format("Current TAS: %.2f", current_tas))
 
-        -- 速度がAIRSPEED_CRUISEを達成したか監視
-        if math.abs(current_tas - airspeed_cruise) <= airspeed_error then
-            local throttle = get_throttle()
-            if throttle then
-                gcs:send_text(6, string.format("Throttle at AIRSPEED_CRUISE: %.2f%%", throttle))    -- 現在のスロットル率を送信
-            else
-                gcs:send_text(6, "Failed to retrieve throttle")
-            end
+    -- 速度がAIRSPEED_CRUISEを達成したか監視
+    if math.abs(current_tas - airspeed_cruise) <= airspeed_error then
+        local throttle = get_throttle()
+        if throttle then
+            gcs:send_text(6, string.format("Throttle at AIRSPEED_CRUISE: %.2f%%", throttle))    -- 現在のスロットル率を送信
             return throttle
+        else
+            gcs:send_text(6, "Failed to retrieve throttle")
         end
-        
-        -- 0.5秒待機して再度確認
-        coroutine.yield(500)
+        return throttle
     end
-
+    return nil
 end
 
 -- THR_MAX を Mission Planner に設定
@@ -109,7 +106,8 @@ function update_thr_max()
     if id then
         gcs:send_text(6, string.format("Received cmd: %d", cmd))
         switch_command(cmd, arg1, arg2)
-    else gcs:send_text(6, "No command received")
+    else 
+        gcs:send_text(6, "No command received")
     end
 
     return update_thr_max, 500   --0.5秒ごとに確認
@@ -117,21 +115,3 @@ function update_thr_max()
 end
 
 return update_thr_max()
-
---[[
--- cmd値を取得
-local cmd = param:get("SCR_CMD")
-
-if cmd == 1 then
-    -- 実行：最大ピッチ角に設定後, AIRSPEED_CRUISEを達成時のスロットル率を取得
-    local thr_max = set_pitch_and_get_throttle_at_cruise()
-    if thr_max then
-        gcs:send_text(6, string.format("Final THR_MAX: %.2f%%", thr_max))
-        set_thr_max(thr_max)
-    else
-        gcs:send_text(6, "THR_MAX retrieve failed")
-    end
-else
-    gcs:send_text(6, "No valid command received")
-end
-]]--

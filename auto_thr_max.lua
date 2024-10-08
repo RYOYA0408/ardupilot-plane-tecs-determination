@@ -87,11 +87,18 @@ function set_thr_max(thr_max)
 
 end
 
--- 実行：最大ピッチ角に設定後, AIRSPEED_CRUISEを達成時のスロットル率を取得
-local thr_max = set_pitch_and_get_throttle_at_cruise()
-if thr_max then
-    gcs:send_text(6, string.format("Final THR_MAX: %.2f%%", thr_max))
-    set_thr_max(thr_max)
+-- cmd値を取得
+local cmd = param:get("SCR_CMD")
+
+if cmd == 1 then
+    -- 実行：最大ピッチ角に設定後, AIRSPEED_CRUISEを達成時のスロットル率を取得
+    local thr_max = set_pitch_and_get_throttle_at_cruise()
+    if thr_max then
+        gcs:send_text(6, string.format("Final THR_MAX: %.2f%%", thr_max))
+        set_thr_max(thr_max)
+    else
+        gcs:send_text(6, "THR_MAX retrieve failed")
+    end
 else
-    gcs:send_text(6, "THR_MAX retrieve failed")
+    gcs:send_text(6, "No valid command received")
 end

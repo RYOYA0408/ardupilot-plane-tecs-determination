@@ -23,13 +23,13 @@ end
 -- エレベータサーボの最大 PWM 値を取得する関数
 function get_elev_rc_max(channel)
     
-    local rc_max = param:get(string.format("SERVO%d_MIN", channel))   -- パラメータの値を MP から取得
+    local rc_max = param:get(string.format("SERVO%d_MAX", channel))   -- パラメータの値を MP から取得
     
     if rc_max then
-        gcs:send_text(6, string.format("MIN PWM for servo channel %d: %d", channel, rc_max))    -- MPに送信
+        gcs:send_text(6, string.format("MAX PWM for servo channel %d: %d", channel, rc_max))    -- MPに送信
         return rc_max
     else
-        gcs:send_text(6, string.format("Failed to retrieve min PWM for servo channel %d", channel)) -- 取得失敗したらエラーメッセージ送信
+        gcs:send_text(6, string.format("Failed to retrieve MAX PWM for servo channel %d", channel)) -- 取得失敗したらエラーメッセージ送信
         return nil
     end
 
@@ -42,7 +42,7 @@ function set_servo_to_pitch_max(channel)
 
     if pitch_max then
         SRV_Channels:set_output_pwm(channel, pitch_max)
-        gcs:send_text(6, string.format("Servo channel %d set to min PWM: %d", channel, pitch_max))
+        gcs:send_text(6, string.format("Servo channel %d set to max PWM: %d", channel, pitch_max))
     else
         gcs:send_text(6, "Unable to set servo to max pitch angle due to missing PWM value")
     end

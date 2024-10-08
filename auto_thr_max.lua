@@ -3,10 +3,8 @@
 --　各種設定
 local airspeed_cruise = param:get("ARSPD_FBW_MIN")  -- AIRSPEED_CRUISEに相当？
 local airspeed_error = 1.5  --速度判定の許容誤差
+local tas = ahrs:get_EAS2TAS()  -- 現在の真対気速度
 local elev_servo_channel = 2
-
--- 各種情報の取得
-local tas = ahrs:get_EAS2TAS()  -- 真対気速度
 
 -- スロットルサーボからスロットル率に変換
 function get_throttle()
@@ -61,7 +59,7 @@ function set_pitch_and_get_throttle_at_cruise()
         local current_tas = tas -- 現在の真対気速度を取得
         gcs:send_text(6, string.format("Current TAS: %.2f", current_tas))
 
-        -- 速度がAIRSPEED_CRUISEを達成したか観測
+        -- 速度がAIRSPEED_CRUISEを達成したか監視
         if math.abs(current_tas - airspeed_cruise) <= airspeed_error then
             local throttle = get_throttle()
             if throttle then
@@ -79,10 +77,10 @@ function set_pitch_and_get_throttle_at_cruise()
 end
 
 -- THR_MAX を Mission Planner に設定
-function set_thr_max(throttle_max)
+function set_thr_max(thr_max)
     
-    if param:set("THR_MAX", throttle_max) then
-        gcs:send_text(6, string.format("THR_MAX successfully set to %.2f%%", throttle_max))
+    if param:set("THR_MAX", thr_max) then
+        gcs:send_text(6, string.format("THR_MAX successfully set to %.2f%%", thr_max))
     else
         gcs:send_text(6, "Faild to set THR_MAX")
     end

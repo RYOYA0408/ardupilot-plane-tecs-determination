@@ -3,7 +3,7 @@
 --　各種設定
 local airspeed_cruise = param:get("ARSPD_FBW_MIN")  -- AIRSPEED_CRUISEに相当？
 local airspeed_error = 1.5  --速度判定の許容誤差
-local tas = ahrs:get_EAS2TAS()  -- 現在の真対気速度
+--local tas = ahrs:get_EAS2TAS()  -- 現在の真対気速度
 local elev_servo_channel = 2
 
 -- スロットルサーボからスロットル率に変換
@@ -56,7 +56,7 @@ function set_pitch_and_get_throttle_at_cruise()
 
     -- 速度がAIRSPEED_CRUISEに達するまで監視
     while true do
-        local current_tas = tas -- 現在の真対気速度を取得
+        local current_tas = ahrs:get_EAS2TAS() -- 現在の真対気速度を取得
         gcs:send_text(6, string.format("Current TAS: %.2f", current_tas))
 
         -- 速度がAIRSPEED_CRUISEを達成したか監視
@@ -112,7 +112,7 @@ function update_thr_max()
     else gcs:send_text(6, "No command received")
     end
 
-    return update,500   --0.5秒ごとに確認
+    return update_thr_max, 500   --0.5秒ごとに確認
 
 end
 

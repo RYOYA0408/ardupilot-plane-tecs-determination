@@ -8,11 +8,13 @@ function debug_param_monitor()
 
     -- パラメータ取得を適宜追加 (Luaコマンド)
     local throttle_now = SRV_Channels:get_output_scaled(k_throttle)
+    local tas_now = ahrs:airspeed_estimate() * ahrs:get_EAS2TAS()
     local pitch_now = math.deg(ahrs:get_pitch())
 
     -- 取得したパラメータをリスト化(適宜同じフォーマットで追加)
     local params = {
         {name = "Throttle percent", value = throttle_now, format="%.2f%%"},
+        {name = "TAS", value = tas_now, format = "%.2f m/s"},
         {name = "Pitch angle", value = pitch_now, format = "%.2f deg."},
     }
 

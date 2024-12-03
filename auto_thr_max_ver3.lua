@@ -28,13 +28,13 @@ function tune_thr_max()
         end
     else
         -- 2秒経過したか確認
-        local now = millis():tofloat()
+        local now = millis():tofloat()  -- 現在の時刻を記録
         if now - pitch_up_time >= 500 then
             local tas_target = 30   -- 目標巡航速度
             local pitch_now = math.deg(ahrs:get_pitch())    -- 現在のピッチ角
             local pitch_target = 29 -- 目標ピッチ角
             -- delay 後 ピッチ角を確認し, 最大ピッチ角判定であればスロットル率を取得
-            if pitch_up_sw then -- and pitch_now >= pitch_target then
+            if pitch_up_sw then -- and pitch_now >= pitch_target then ピッチアップ完了後の処理
                 gcs:send_text(6, "Target pitch angle is reached")
                 local tas_now = ahrs:airspeed_estimate() * ahrs:get_EAS2TAS()
                 if math.abs(tas_target - tas_now) <=  tas_error then
@@ -47,12 +47,12 @@ function tune_thr_max()
                     end
                 elseif tas_now < (tas_target - tas_error) then
                     local thr_now = SRV_Channels:get_output_scaled(k_throttle)
-                    local thr_plus = math.min(thr_now + 5, thr_max) -- スロットル率を 5 % 増
+                    local thr_plus = math.min(thr_now + 5, 100) -- スロットル率を 5 % 増
                     SRV_Channels:set_output_scaled(k_throttle, thr_plus)
                     gcs:send_text(6, "Increased throttle")
                 elseif tas_now > (tas_target + tas_error) then
                     local thr_now = SRV_Channels:get_output_scaled(k_throttle)
-                    local thr_minus = math.max(thr_now - 5, thr_min)
+                    local thr_minus = math.max(thr_now - 5, 10)
                     SRV_Channels:set_output_scaled(k_throttle, thr_minus)
                     gcs:send_text(6, "Decreased throttle")
                 else

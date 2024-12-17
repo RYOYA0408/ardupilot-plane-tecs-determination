@@ -1,4 +1,4 @@
---[[ スロットル率を取得/更新する関数
+--スロットル率を取得/更新する関数
 function get_throttle()
     -- スロットルの機能番号
     local k_throttle = 70
@@ -14,7 +14,7 @@ function get_throttle()
         end
 
         -- 新しいスロットル値を設定
-        SRV_Channels:set_output_scaled(k_throttle, throttle_new)
+        SRV_Channels:set_output_scaled(k_throttle, 0.8)
 
         -- 設定後のスロットル率を再取得
         local throttle_updated = SRV_Channels:get_output_scaled(k_throttle)
@@ -34,7 +34,7 @@ function get_throttle()
     end
 end
 
-
+--[[
 function get_pitch_angle()
     -- ピッチ角を取得
     local pitch_now = math.deg(ahrs:get_pitch())
@@ -49,7 +49,6 @@ function get_pitch_angle()
         return false
     end
 end
-]]--
 
 local scripting_rc_1 = rc:find_channel_for_option(300) -- 任意スクリプト開始スイッチ
 local pitch_up_sw = false
@@ -79,17 +78,16 @@ function set_servo2pitch_max(sw)
         pitch_up_sw = false
     end
 end
-
+]]--
 -- メインループ関数
---[[
 function update()
     local id, cmd = vehicle:nav_script_time()
 
     if id ~= nil then
         if cmd == 1 then
-            --get_throttle()
+            get_throttle()
             --get_pitch_angle()
-            set_servo2pitch_max()
+            --set_servo2pitch_max()
             vehicle:nav_script_time_done(id)
         else
             vehicle:nav_script_time_done(id)
@@ -98,8 +96,8 @@ function update()
     -- 0.1秒ごとに更新
     return update, 100
 end
-]]
 
+--[[
 function update()
     local mode = vehicle:get_mode()
     if mode == 10 and scripting_rc_1 then
@@ -113,5 +111,5 @@ function update()
     -- 0.1秒ごとに更新
     return update, 100
 end
-
+]]--
 return update()

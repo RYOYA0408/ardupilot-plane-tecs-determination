@@ -550,4 +550,60 @@ void Location::linearly_interpolate_alt(const Location &point1, const Location &
     set_alt_cm(point1.alt + (point2.alt - point1.alt) * constrain_float(line_path_proportion(point1, point2), 0.0f, 1.0f), point2.get_alt_frame());
 }
 
+/*
+  2つの離れた円の共通接点を返す
+*/
+void Location::common_tangent_point(
+    const Location c1,      // 円1 の中心
+    const Location c2,      // 円2 の中心
+    const float r1,         // 円1 の半径
+    const float r2,         // 円2 の半径
+    const int8_t dir1,      // 円1 の回転方向 -1=cw, 1=ccw
+    const int8_t dir2,      // 円2 の回転方向 -1=cw, 1=ccw
+    Location &ctp1,   // 円1 の共通接点
+    Location &ctp2    // 円2 の共通接点
+    )
+{
+    ftype dx, dy, dr, offset_x, offset_y;
+    Vector2f dist_ne = get_distance_NE(c2);
+    ctp1 = c1;
+    ctp2 = c2;
+    dx = dist_ne.x;
+    dy = dist_ne.y;
+    
+    if (dir1 == -1 && dir2 == -1) {             // 外接・時計回り
+        dr = r1 - r2;
+        offset_x = (dx*dr*r1+dy*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (dy*dr*r1-dx*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp1.offset(offset_x, offset_y);
+        offset_x = (dx*dr*r2-dy*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (dy*dr*r2+dx*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp2.offset(offset_x, offset_y);
+    } else if (dir1 == 1 && dir2 == 1) {        // 外接・反時計回り
+        dr = r1 - r2;
+        offset_x = (dx*dr*r1-dy*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (dy*dr*r1+dx*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp1.offset(offset_x, offset_y);
+        offset_x = (dx*dr*r2+dy*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (dy*dr*r2-dx*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp2.offset(offset_x, offset_y);
+    } else if (dir1 == -1 && dir2 == 1) {       // 内接・時計回り
+        dr = r1 + r2;
+        offset_x = (-dx*dr*r1+dy*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (-dy*dr*r1-dx*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp1.offset(offset_x, offset_y);
+        offset_x = (dx*dr*r2-dy*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (dy*dr*r2+dx*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp2.offset(offset_x, offset_y);
+    } else {                                    // 内接・反時計回り
+        dr = r1 + r2;
+        offset_x = (-dx*dr*r1-dy*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (-dy*dr*r1+dx*r1*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp1.offset(offset_x, offset_y);
+        offset_x = (dx*dr*r2+dy*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        offset_y = (dy*dr*r2-dx*r2*sqrt(dx*dx+dy*dy-dr*dr)) / (dist_ne*dist_ne);
+        ctp2.offset(offset_x, offset_y);
+    }
+}
+
 #endif // HAL_BOOTLOADER_BUILD

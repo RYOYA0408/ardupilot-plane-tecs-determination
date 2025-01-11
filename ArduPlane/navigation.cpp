@@ -160,7 +160,7 @@ void Plane::calc_airspeed_errors()
     // FBW_B/cruise airspeed target
     if (!failsafe.rc_failsafe && (control_mode == &mode_fbwb || control_mode == &mode_cruise)) {
         if (flight_option_enabled(FlightOptions::CRUISE_TRIM_AIRSPEED)) {
-            target_airspeed_cm = aparm.airspeed_cruise*100;
+            target_airspeed_cm = mode_auto_target_airspeed_cm();
         } else if (flight_option_enabled(FlightOptions::CRUISE_TRIM_THROTTLE)) {
             float control_min = 0.0f;
             float control_mid = 0.0f;
@@ -175,11 +175,11 @@ void Plane::calc_airspeed_errors()
                     break;
             }
             if (control_in <= control_mid) {
-                target_airspeed_cm = linear_interpolate(aparm.airspeed_min * 100, aparm.airspeed_cruise*100,
+                target_airspeed_cm = linear_interpolate(aparm.airspeed_min * 100, mode_auto_target_airspeed_cm(),
                                                         control_in,
                                                         control_min, control_mid);
             } else {
-                target_airspeed_cm = linear_interpolate(aparm.airspeed_cruise*100, aparm.airspeed_max * 100,
+                target_airspeed_cm = linear_interpolate(mode_auto_target_airspeed_cm(), aparm.airspeed_max * 100,
                                                         control_in,
                                                         control_mid, control_max);
             }
@@ -239,7 +239,7 @@ void Plane::calc_airspeed_errors()
 #endif
     } else {
         // Normal airspeed target for all other cases
-        target_airspeed_cm = aparm.airspeed_cruise*100;
+        target_airspeed_cm = mode_auto_target_airspeed_cm();
     }
 
     // Set target to current airspeed + ground speed undershoot,

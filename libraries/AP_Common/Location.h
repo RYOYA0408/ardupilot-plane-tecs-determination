@@ -167,6 +167,18 @@ public:
     // get lon1-lon2, wrapping at -180e7 to 180e7
     static int32_t diff_longitude(int32_t lon1, int32_t lon2);
 
+    // 2つの離れた円の共通接点を返す
+    void common_tangent_point(
+        const Location c1,      // 円1 の中心
+        const Location c2,      // 円2 の中心
+        const float r1,         // 円1 の半径
+        const float r2,         // 円2 の半径
+        const int8_t dir1,      // 円1 の回転方向 -1=cw, 1=ccw
+        const int8_t dir2,      // 円2 の回転方向 -1=cw, 1=ccw
+        Location &ctp1,   // 円1 の共通接点
+        Location &ctp2    // 円2 の共通接点
+        );
+
 private:
 
     // scaling factor from 1e-7 degrees to meters at equator

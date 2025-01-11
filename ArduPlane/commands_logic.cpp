@@ -362,6 +362,8 @@ Location Plane::calc_best_rally_or_home_location(const Location &_current_loc, f
 void Plane::do_takeoff(const AP_Mission::Mission_Command& cmd)
 {
     prev_WP_loc = current_loc;
+    prev_WP_radius = get_wp_radius();
+    prev_WP_direction = 1;
     set_next_WP(cmd.content.location);
     // pitch in deg, airspeed  m/s, throttle %, track WP 1 or 0
     auto_state.takeoff_pitch_cd        = (int16_t)cmd.p1 * 100;
@@ -592,7 +594,9 @@ bool Plane::verify_takeoff()
                           (double)(relative_alt_cm*0.01f));
         steer_state.hold_course_cd = -1;
         auto_state.takeoff_complete = true;
-        next_WP_loc = prev_WP_loc = current_loc;
+        next_WP_loc = prev_WP_loc = flex_prev_WP_loc = current_loc;
+        next_WP_radius = prev_WP_radius = get_wp_radius();
+        next_WP_direction = prev_WP_direction = 1;
 
 #if AP_FENCE_ENABLED
         plane.fence.auto_enable_fence_after_takeoff();
@@ -619,6 +623,11 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
     // fly past it for set distance along the line of waypoints
     Location flex_next_WP_loc = next_WP_loc;
 
+    // TurningPoint 周回飛行が指定されていた，または TurningPoint 円周上を飛行中であれば
+    if (cmd.content.location.loiter_ccw != 0 || auto_state.tp_circle_mode) {
+        return verify_nav_tp(cmd);
+    }
+
     uint8_t cmd_passby = HIGHBYTE(cmd.p1); // distance in meters to pass beyond the wp
     uint8_t cmd_acceptance_distance = LOWBYTE(cmd.p1); // radius in meters to accept reaching the wp
 
@@ -644,7 +653,7 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
         if (current_loc.past_interval_finish_line(prev_WP_loc, flex_next_WP_loc)) {
             // this is needed to ensure completion of the waypoint
             if (cmd_passby == 0) {
-                prev_WP_loc = current_loc;
+                prev_WP_loc = flex_prev_WP_loc = current_loc;
             }
         }
         return false;
@@ -662,6 +671,7 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
         gcs().send_text(MAV_SEVERITY_INFO, "Reached waypoint #%i dist %um",
                           (unsigned)mission.get_current_nav_cmd().index,
                           (unsigned)current_loc.get_distance(flex_next_WP_loc));
+        flex_prev_WP_loc = current_loc;
         return true;
 	}
 
@@ -670,9 +680,142 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
         gcs().send_text(MAV_SEVERITY_INFO, "Passed waypoint #%i dist %um",
                           (unsigned)mission.get_current_nav_cmd().index,
                           (unsigned)current_loc.get_distance(flex_next_WP_loc));
+        flex_prev_WP_loc = current_loc;
         return true;
     }
 
+    return false;
+}
+
+/*
+  update navigation for normal mission turning points. Return true when the
+  turning point is complete
+ */
+bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
+{
+    steer_state.hold_course_cd = -1;
+
+    // depending on the pass by flag either go to waypoint in regular manner or
+    // fly past it for set distance along the line of waypoints
+    Location flex_next_WP_loc = next_WP_loc;
+
+    // loiter_ccw: turning point と判断するためのフラグ
+    // loiter_xtrack: turning point の周回方向 1:ccw, 0:cw
+    if (cmd.content.location.loiter_ccw == 1) {
+        if (cmd.content.location.loiter_xtrack == 1) {
+            next_WP_direction = 1;      // turning point ccw
+        } else {
+            next_WP_direction = -1;     // turning point cw
+        }
+    }
+
+    next_WP_radius = HIGHBYTE(cmd.p1); // radius of turning point
+    if (next_WP_radius < 1) {
+        next_WP_radius = get_wp_radius();
+    }
+
+    // Turning point 周回経路に乗っている
+    if (auto_state.crosstrack) {
+        // Turning point 円周上を飛行中でない（Turning point 間の直線区間を飛行中）
+        if (!auto_state.tp_circle_mode) {
+            // 目標位置を前回位置から turning circle へ引いた接線の接点に設定
+            Vector2f AB = flex_prev_WP_loc.get_distance_NE(flex_next_WP_loc);
+            float AB_Length = AB.length();
+            float theta = next_WP_direction * asinf(next_WP_radius/MAX(AB_Length, 0.1));
+            theta += next_WP_direction * 1.5707963f;    // 1.5707963 = pi/2
+            Vector2f v_tmp = AB;
+            v_tmp.rotate(theta);
+            float bearing = degrees(atan2f(v_tmp.y, v_tmp.x));
+            flex_next_WP_loc.offset_bearing(bearing, next_WP_radius);
+            nav_controller->update_waypoint(flex_prev_WP_loc, flex_next_WP_loc);
+        }
+        // Turning point 円周上を飛行中
+        else{
+            // 次の目標が Turning point でなければ，目標位置と現 Turning point 円周との接線を求める
+            if (cmd.content.location.loiter_ccw == 0) {
+                Vector2f AB = prev_WP_loc.get_distance_NE(next_WP_loc);
+                float AB_Length = AB.length();
+                float theta = -prev_WP_direction * asinf(prev_WP_radius/MAX(AB_Length, 0.1));
+                AB = -AB;
+                AB.rotate(theta);
+                float bearing = degrees(atan2f(AB.y, AB.x));
+                flex_prev_WP_loc = next_WP_loc;
+                float dist = AB_Length * cosf(theta);
+                flex_prev_WP_loc.offset_bearing(bearing, dist);
+            } else {
+            // 次の周回円周との共通接点を求める
+                prev_WP_loc.common_tangent_point(
+                    prev_WP_loc,            // 円1 の中心
+                    next_WP_loc,            // 円2 の中心
+                    prev_WP_radius,         // 円1 の半径
+                    next_WP_radius,         // 円2 の半径
+                    prev_WP_direction,      // 円1 の回転方向 -1=cw, 1=ccw
+                    next_WP_direction,      // 円2 の回転方向 -1=cw, 1=ccw
+                    flex_prev_WP_loc,       // 円1 の共通接点
+                    flex_next_WP_loc        // 円2 の共通接点
+                ) ;
+            }
+            // 接点 flex_prev_WP_loc まで円周上を飛行する
+            nav_controller->update_loiter(prev_WP_loc, prev_WP_radius, -prev_WP_direction);
+        }
+    // Turning point 周回経路に乗っていない
+    } else {
+        auto_state.tp_circle_mode = false;
+        // 目標位置を現在位置から turning circle へ引いた接線の接点に設定
+        Vector2f air_B = current_loc.get_distance_NE(flex_next_WP_loc);
+        float air_B_Length = air_B.length();
+        float theta = next_WP_direction * asinf(next_WP_radius/MAX(air_B_Length, 0.1));
+        theta += next_WP_direction * 1.5707963f;    // 1.5707963 = pi/2
+        Vector2f v_tmp = air_B;
+        v_tmp.rotate(theta);
+        float bearing = degrees(atan2f(v_tmp.y, v_tmp.x));
+        flex_next_WP_loc.offset_bearing(bearing, next_WP_radius);
+        nav_controller->update_waypoint(current_loc, flex_next_WP_loc);
+    }
+
+    // 目標点への近接判定
+    // Turning point 円周上を飛行中でない
+    if (!auto_state.tp_circle_mode) {
+        float acceptance_distance_m = nav_controller->turn_distance(next_WP_radius, auto_state.next_turn_angle);
+        const float tp_dist = current_loc.get_distance(flex_next_WP_loc);
+        if (tp_dist <= acceptance_distance_m) {
+            gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point #%i dist %um",
+                            (unsigned)mission.get_current_nav_cmd().index,
+                            (unsigned)current_loc.get_distance(flex_next_WP_loc));
+            auto_state.tp_circle_mode = true;
+            return true;
+        }
+
+        // have we flown past the waypoint?
+        if (current_loc.past_interval_finish_line(prev_WP_loc, flex_next_WP_loc)) {
+            gcs().send_text(MAV_SEVERITY_INFO, "Passed turning point #%i dist %um",
+                            (unsigned)mission.get_current_nav_cmd().index,
+                            (unsigned)current_loc.get_distance(flex_next_WP_loc));
+            auto_state.tp_circle_mode = true;
+            return true;
+        }
+    // Turning point 円周上を飛行中
+    } else {
+        // Turning point 中心から円周上の目標地点までのベクトル
+        Vector2f ab = prev_WP_loc.get_distance_NE(flex_prev_WP_loc);
+        float theta_ab = atan2f(ab.y, ab.x);
+        // Turning point 中心から現在位置までのベクトル
+        Vector2f ac = prev_WP_loc.get_distance_NE(current_loc);
+        float theta_ac = atan2f(ac.y, ac.x);
+//        printf("%.2f, %.2f\n", degrees(theta_ab), degrees(theta_ac));
+        float rmax = theta_ab + radians(10.0);
+        float rmin = theta_ab - radians(10.0);
+        if ((theta_ac > rmin && theta_ac < rmax) ||
+            (theta_ac + 2.0*3.141593 > rmin && theta_ac + 2.0*3.141593 < rmax) ||
+            (theta_ac - 2.0*3.141593 > rmin && theta_ac - 2.0*3.141593 < rmax)) {
+            gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point end #%i dist %um",
+                            (unsigned)mission.get_current_nav_cmd().index - 1,
+                            (unsigned)current_loc.get_distance(flex_prev_WP_loc));
+            auto_state.tp_circle_mode = false;
+            prev_WP_loc = flex_prev_WP_loc;
+        }
+        
+    }
     return false;
 }
 

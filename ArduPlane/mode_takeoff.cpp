@@ -92,6 +92,7 @@ void ModeTakeoff::update()
             if (altitude >= alt) {
                 gcs().send_text(MAV_SEVERITY_INFO, "Above TKOFF alt - loitering");
                 plane.next_WP_loc = plane.current_loc;
+                plane.next_WP_radius = plane.get_wp_radius();
                 takeoff_mode_setup = true;
                 plane.set_flight_stage(AP_FixedWing::FlightStage::NORMAL);
             } else {
@@ -100,6 +101,7 @@ void ModeTakeoff::update()
                 plane.next_WP_loc = plane.current_loc;
                 plane.next_WP_loc.alt += ((alt - altitude) *100);
                 plane.next_WP_loc.offset_bearing(direction, dist);
+                plane.next_WP_radius = plane.get_wp_radius();
                 takeoff_mode_setup = true;
                 plane.set_flight_stage(AP_FixedWing::FlightStage::TAKEOFF);
             }
@@ -111,6 +113,8 @@ void ModeTakeoff::update()
             plane.next_WP_loc = plane.current_loc;
             plane.next_WP_loc.alt += alt*100.0;
             plane.next_WP_loc.offset_bearing(direction, dist);
+            plane.prev_WP_radius = plane.next_WP_radius = plane.get_wp_radius();
+            plane.prev_WP_direction = plane.next_WP_direction = 1;
 
             plane.crash_state.is_crashed = false;
 

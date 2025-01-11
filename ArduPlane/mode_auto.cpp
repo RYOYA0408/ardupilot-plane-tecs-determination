@@ -24,6 +24,8 @@ bool ModeAuto::_enter()
     plane.auto_state.vtol_mode = false;
 #endif
     plane.next_WP_loc = plane.prev_WP_loc = plane.current_loc;
+    plane.next_WP_radius = plane.prev_WP_radius = plane.get_wp_radius();
+    plane.next_WP_direction = plane.prev_WP_direction = 1;
     // start or resume the mission, based on MIS_AUTORESET
     plane.mission.start_or_resume();
 

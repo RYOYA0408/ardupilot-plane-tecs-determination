@@ -99,7 +99,7 @@ void ModeRTL::navigate()
     if (radius > 0) {
         plane.loiter.direction = (plane.g.rtl_radius < 0) ? -1 : 1;
     }
-
+    plane.auto_state.tp_circle_mode = false;
     plane.update_loiter(radius);
 
     if (!plane.auto_state.checked_for_autoland) {

@@ -498,8 +498,15 @@ void AP_TECS::_update_speed_demand(void)
         _TAS_dem_adj = TAS_dem_previous + velRateMax * _DT;
         _TAS_rate_dem = velRateMax;
     } else if ((_TAS_dem - TAS_dem_previous) < (velRateMin * _DT)) {
-        _TAS_dem_adj = TAS_dem_previous + velRateMin * _DT;
-        _TAS_rate_dem = velRateMin;
+        float omega = 2.0 * 3.14159265 / 15.0;
+        float denom = 1.0 + 2.0 * omega * _DT + omega*omega * _DT*_DT;
+        float a = (2.0 + 2.0 * omega * _DT) / denom;
+        float b = 1.0 / denom;
+        float c = omega*omega * _DT*_DT * _TAS_dem / denom;
+        float y_1 = TAS_dem_previous;
+        float y_2 = _TAS_dem_adj_2;
+        _TAS_dem_adj = a * y_1 - b * y_2 + c;
+        _TAS_rate_dem = (_TAS_dem_adj - TAS_dem_previous) / _DT;
     } else {
         _TAS_rate_dem = (_TAS_dem - TAS_dem_previous) / _DT;
         _TAS_dem_adj = _TAS_dem;
@@ -515,6 +522,7 @@ void AP_TECS::_update_speed_demand(void)
     }
 
     // Constrain speed demand again to protect against bad values on initialisation.
+    _TAS_dem_adj_2 = TAS_dem_previous;
     _TAS_dem_adj = constrain_float(_TAS_dem_adj, _TASmin, _TASmax);
 }
 

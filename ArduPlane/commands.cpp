@@ -12,10 +12,14 @@ void Plane::set_next_WP(const Location &loc)
     if (auto_state.next_wp_crosstrack) {
         // copy the current WP into the OldWP slot
         prev_WP_loc = next_WP_loc;
+        prev_WP_radius = next_WP_radius;
+        prev_WP_direction = next_WP_direction;
         auto_state.crosstrack = true;
     } else {
         // we should not try to cross-track for this waypoint
         prev_WP_loc = current_loc;
+        prev_WP_radius = get_wp_radius();
+        prev_WP_direction = 1;
         // use cross-track for the next waypoint
         auto_state.next_wp_crosstrack = true;
         auto_state.crosstrack = false;
@@ -51,7 +55,9 @@ void Plane::set_next_WP(const Location &loc)
     // location as the previous waypoint, to prevent immediately
     // considering the waypoint complete
     if (current_loc.past_interval_finish_line(prev_WP_loc, next_WP_loc)) {
-        prev_WP_loc = current_loc;
+        prev_WP_loc = flex_prev_WP_loc = current_loc;
+        prev_WP_radius = get_wp_radius();
+        prev_WP_direction = 1;
     }
 
     // zero out our loiter vals to watch for missed waypoints
@@ -79,7 +85,7 @@ void Plane::set_guided_WP(const Location &loc)
 
     // copy the current location into the OldWP slot
     // ---------------------------------------
-    prev_WP_loc = current_loc;
+    prev_WP_loc = flex_prev_WP_loc = current_loc;
 
     // Load the next_WP slot
     // ---------------------

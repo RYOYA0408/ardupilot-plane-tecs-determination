@@ -18,6 +18,7 @@
  */
 
 #include "AP_Landing.h"
+#include "../ArduPlane/Plane.h"
 #include <GCS_MAVLink/GCS.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_LandingGear/AP_LandingGear.h>
@@ -345,7 +346,7 @@ int32_t AP_Landing::type_slope_get_target_airspeed_cm(void)
     // pre-flare airspeeds. Also increase for head-winds
 
     const float land_airspeed = tecs_Controller->get_land_airspeed();
-    int32_t target_airspeed_cm = aparm.airspeed_cruise*100;
+    int32_t target_airspeed_cm = plane.mode_auto_target_airspeed_cm();
     if (land_airspeed >= 0) {
         target_airspeed_cm = land_airspeed * 100;
     } else {

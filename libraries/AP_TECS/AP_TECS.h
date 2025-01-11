@@ -310,6 +310,7 @@ private:
     // Speed demand after application of rate limiting
     // This is the demand tracked by the TECS control loops
     float _TAS_dem_adj;
+    float _TAS_dem_adj_2;
 
     // Speed rate demand after application of rate limiting
     // This is the demand tracked by the TECS control loops

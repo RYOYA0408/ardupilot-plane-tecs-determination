@@ -18,6 +18,7 @@
  */
 
 #include "AP_Landing.h"
+#include "../ArduPlane/Plane.h"
 #include <GCS_MAVLink/GCS.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <AC_Fence/AC_Fence.h>
@@ -559,7 +560,11 @@ int32_t AP_Landing::get_target_airspeed_cm(void)
 {
     if (!flags.in_progress) {
         // not landing, use regular cruise airspeed
-        return aparm.airspeed_cruise*100;
+        if (plane.new_airspeed_cm > 0) {
+            return plane.new_airspeed_cm;
+        } else {
+            return aparm.airspeed_cruise*100;
+        }
     }
 
     switch (type) {

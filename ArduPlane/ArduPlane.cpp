@@ -475,7 +475,9 @@ void Plane::update_GPS_10Hz(void)
                     // silently ignore failure...
                 }
 
-                next_WP_loc = prev_WP_loc = home;
+                next_WP_loc = prev_WP_loc = flex_prev_WP_loc = home;
+                next_WP_radius = prev_WP_radius = get_wp_radius();
+                next_WP_direction = prev_WP_direction = 1;
 
                 ground_start_count = 0;
             }

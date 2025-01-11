@@ -145,6 +145,7 @@ public:
     friend class SLT_Transition;
     friend class Tailsitter_Transition;
     friend class VTOL_Assist;
+    friend class AP_Landing;
 
     friend class Mode;
     friend class ModeCircle;
@@ -550,6 +551,9 @@ private:
 
         // last home altitude for detecting changes
         int32_t last_home_alt_cm;
+
+        // are we circle tracking mode for this turning point? 
+        bool tp_circle_mode;
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED
@@ -755,12 +759,17 @@ private:
 
     // The location of the previous waypoint.  Used for track following and altitude ramp calculations
     Location prev_WP_loc {};
+    Location flex_prev_WP_loc {};
+    float prev_WP_radius;
+    int8_t prev_WP_direction;
 
     // The plane's current location
     Location current_loc {};
 
     // The location of the current/active waypoint.  Used for altitude ramp, track following and loiter calculations.
     Location next_WP_loc {};
+    float next_WP_radius;
+    int8_t next_WP_direction;
 
     // Altitude control
     struct {
@@ -990,6 +999,7 @@ private:
     void do_vtol_takeoff(const AP_Mission::Mission_Command& cmd);
     void do_vtol_land(const AP_Mission::Mission_Command& cmd);
     bool verify_nav_wp(const AP_Mission::Mission_Command& cmd);
+    bool verify_nav_tp(const AP_Mission::Mission_Command& cmd);
 #if HAL_QUADPLANE_ENABLED
     bool verify_landing_vtol_approach(const AP_Mission::Mission_Command& cmd);
 #endif

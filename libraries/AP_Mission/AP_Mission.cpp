@@ -1065,10 +1065,22 @@ MAV_MISSION_RESULT AP_Mission::mavlink_int_to_mission_cmd(const mavlink_mission_
         // acceptance radius in meters and pass by distance in meters
         uint16_t acp = packet.param2;           // param 2 is acceptance radius in meters is held in low p1
         uint16_t passby = packet.param3;        // param 3 is pass by distance in meters is held in high p1
+        int16_t turning_point = packet.param4;  // TurningPoint とするフラグ param4 < 0: ccw,  param4 = 0: wp,  param4 > 0: cw 
 
         // limit to 255 so it does not wrap during the shift or mask operation
         passby = MIN(0xFF,passby);
         acp = MIN(0xFF,acp);
+
+        if (turning_point < 0) {
+            cmd.content.location.loiter_ccw = 1;    // turning_point < 0: ccw
+            cmd.content.location.loiter_xtrack = 1;
+        } else if (turning_point > 0) {
+            cmd.content.location.loiter_ccw = 1;    // turning_point > 0: cw
+            cmd.content.location.loiter_xtrack = 0;
+        } else {
+            cmd.content.location.loiter_ccw = 0;
+            cmd.content.location.loiter_xtrack = 0;
+        }
 
         cmd.p1 = (passby << 8) | (acp & 0x00FF);
 #else
@@ -1596,6 +1608,15 @@ bool AP_Mission::mission_cmd_to_mavlink_int(const AP_Mission::Mission_Command& c
 
         packet.param2 = LOWBYTE(cmd.p1);        // param 2 is acceptance radius in meters is held in low p1
         packet.param3 = HIGHBYTE(cmd.p1);       // param 3 is pass by distance in meters is held in high p1
+        if (cmd.content.location.loiter_ccw == 1) {
+            if (cmd.content.location.loiter_xtrack == 1) {
+                packet.param4 = -1;         // turning point ccw
+            } else {
+                packet.param4 = 1;          // turning point cw
+            }
+        } else {
+            packet.param4 = 0;              // way point
+        }
 #else
         // delay at waypoint in seconds
         packet.param1 = cmd.p1;

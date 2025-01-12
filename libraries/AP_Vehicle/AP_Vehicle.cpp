@@ -605,7 +605,7 @@ const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
     FAST_TASK_CLASS(AP_GyroFFT,    &vehicle.gyro_fft,       sample_gyros),
 #endif
 #if AP_AIRSPEED_ENABLED
-    SCHED_TASK_CLASS(AP_Airspeed,  &vehicle.airspeed,       update,                   10, 100, 41),    // NOTE: the priority number here should be right before Plane's calc_airspeed_errors
+    SCHED_TASK_CLASS(AP_Airspeed,  &vehicle.airspeed,       update,                   50, 100, 41),    // NOTE: the priority number here should be right before Plane's calc_airspeed_errors
 #endif
 #if COMPASS_CAL_ENABLED
     SCHED_TASK_CLASS(Compass,      &vehicle.compass,        cal_update,     100, 200, 75),

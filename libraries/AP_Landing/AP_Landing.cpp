@@ -18,7 +18,6 @@
  */
 
 #include "AP_Landing.h"
-#include "../ArduPlane/Plane.h"
 #include <GCS_MAVLink/GCS.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <AC_Fence/AC_Fence.h>

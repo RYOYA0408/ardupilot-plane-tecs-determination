@@ -145,7 +145,6 @@ public:
     friend class SLT_Transition;
     friend class Tailsitter_Transition;
     friend class VTOL_Assist;
-    friend class AP_Landing;
 
     friend class Mode;
     friend class ModeCircle;

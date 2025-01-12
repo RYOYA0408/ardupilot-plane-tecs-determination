@@ -560,8 +560,8 @@ int32_t AP_Landing::get_target_airspeed_cm(void)
 {
     if (!flags.in_progress) {
         // not landing, use regular cruise airspeed
-        if (plane.new_airspeed_cm > 0) {
-            return plane.new_airspeed_cm;
+        if (new_airspeed_cm > 0) {
+            return new_airspeed_cm;
         } else {
             return aparm.airspeed_cruise*100;
         }

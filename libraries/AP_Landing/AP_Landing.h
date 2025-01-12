@@ -114,6 +114,7 @@ public:
 
     // landing altitude offset (meters)
     float alt_offset;
+    int32_t new_airspeed_cm = -1;
 
 private:
     struct {

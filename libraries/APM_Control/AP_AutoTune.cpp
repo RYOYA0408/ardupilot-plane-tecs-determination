@@ -207,16 +207,20 @@ void AP_AutoTune::update(AP_PIDInfo &pinfo, float scaler, float angle_err_deg)
     max_SRate_D = MAX(max_SRate_D, slew_limiter_D.get_slew_rate());
 
     float att_limit_deg = 0;
+    uint8_t log_msg = 0;
     switch (type) {
     case AUTOTUNE_ROLL:
         att_limit_deg = aparm.roll_limit;
+        log_msg = LOG_ATRPR_MSG;
         break;
     case AUTOTUNE_PITCH:
         att_limit_deg = MIN(abs(aparm.pitch_limit_max*100),abs(aparm.pitch_limit_min*100))*0.01;
+        log_msg = LOG_ATRPP_MSG;
         break;
     case AUTOTUNE_YAW:
         // arbitrary value for yaw angle
         att_limit_deg = 20;
+        log_msg = LOG_ATRPY_MSG;
         break;
     }
 
@@ -252,7 +256,7 @@ void AP_AutoTune::update(AP_PIDInfo &pinfo, float scaler, float angle_err_deg)
     if (now - last_log_ms >= 40) {
         // log at 25Hz
         const struct log_ATRP pkt {
-            LOG_PACKET_HEADER_INIT(LOG_ATRP_MSG),
+            LOG_PACKET_HEADER_INIT(log_msg),
             time_us : AP_HAL::micros64(),
             type : uint8_t(type),
             state: uint8_t(new_state),

@@ -43,6 +43,7 @@ public:
     int32_t bearing_error_cd(void) const override;
 
     float crosstrack_error(void) const override { return _crosstrack_error; }
+    float crosstrack_ds(void) const override { return _ct_ds; }
     float crosstrack_error_integrator(void) const override { return _L1_xtrack_i; }
 
     int32_t target_bearing_cd(void) const override;
@@ -50,7 +51,7 @@ public:
     float turn_distance(float wp_radius, float turn_angle) const override;
     float loiter_radius (const float loiter_radius) const override;
     void update_waypoint(const class Location &prev_WP, const class Location &next_WP, float dist_min = 0.0f) override;
-    void update_loiter(const class Location &center_WP, float radius, int8_t loiter_direction) override;
+    void update_loiter(const struct Location &center_WP, float radius, int8_t loiter_direction, bool scale_raduis = true) override;
     void update_heading_hold(int32_t navigation_heading_cd) override;
     void update_level_flight(void) override;
     bool reached_loiter_target(void) override;
@@ -72,6 +73,10 @@ public:
 
     void set_reverse(bool reverse) override {
         _reverse = reverse;
+    }
+
+    float get_L1_dist(void) {
+	return _L1_dist;
     }
 
 private:
@@ -99,6 +104,11 @@ private:
 
     // crosstrack error in meters
     float _crosstrack_error;
+    // crosstrack error を測定する経路上の点
+    Location _ct_loc;
+    // crosstrack error を積算するための面積要素 ds
+    float _ct_ds;
+    float _ah_len;
 
     // target bearing in centi-degrees from last update
     int32_t _target_bearing_cd;

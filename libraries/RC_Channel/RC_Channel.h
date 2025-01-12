@@ -335,9 +335,9 @@ public:
     static const uint16_t RC_CALIB_MAX_LIMIT_PWM = 1700;
 
     // pwm value above which the switch/button will be invoked:
-    static const uint16_t AUX_SWITCH_PWM_TRIGGER_HIGH = 1800;
+    static const uint16_t AUX_SWITCH_PWM_TRIGGER_HIGH = 1700;
     // pwm value below which the switch/button will be disabled:
-    static const uint16_t AUX_SWITCH_PWM_TRIGGER_LOW = 1200;
+    static const uint16_t AUX_SWITCH_PWM_TRIGGER_LOW = 1300;
 
     // pwm value above which the option will be invoked:
     static const uint16_t AUX_PWM_TRIGGER_HIGH = 1700;

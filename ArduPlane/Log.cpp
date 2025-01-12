@@ -162,6 +162,7 @@ struct PACKED log_Nav_Tuning {
     int16_t nav_bearing_cd;
     int16_t altitude_error_cm;
     float   xtrack_error;
+    float   xtrack_ds;
     float   xtrack_error_i;
     float   airspeed_error;
     int32_t target_lat;
@@ -182,6 +183,7 @@ void Plane::Log_Write_Nav_Tuning()
         nav_bearing_cd      : (int16_t)nav_controller->nav_bearing_cd(),
         altitude_error_cm   : (int16_t)plane.calc_altitude_error_cm(),
         xtrack_error        : nav_controller->crosstrack_error(),
+        xtrack_ds           : nav_controller->crosstrack_ds(),
         xtrack_error_i      : nav_controller->crosstrack_error_integrator(),
         airspeed_error      : airspeed_error,
         target_lat          : next_WP_loc.lat,
@@ -336,6 +338,7 @@ const struct LogStructure Plane::log_structure[] = {
 // @Field: AltE: difference between current vehicle height and target height
 // @Field: XT: the vehicle's current distance from the current travel segment
 // @Field: XTi: integration of the vehicle's crosstrack error
+// @Field: S: crosstrack error を積分するための面積要素
 // @Field: AsE: difference between vehicle's airspeed and desired airspeed
 // @Field: TLat: target latitude
 // @Field: TLng: target longitude
@@ -343,9 +346,9 @@ const struct LogStructure Plane::log_structure[] = {
 // @Field: TAT: target altitude TECS
 // @Field: TAsp: target airspeed
     { LOG_NTUN_MSG, sizeof(log_Nav_Tuning),         
-      "NTUN", "QfcccfffLLeee",  "TimeUS,Dist,TBrg,NavBrg,AltE,XT,XTi,AsE,TLat,TLng,TAW,TAT,TAsp", "smddmmmnDUmmn", "F0BBB0B0GG000" , true },
+      "NTUN", "QfcccffffLLeee",  "TimeUS,Dist,TBrg,NavBrg,AltE,XT,S,XTi,AsE,TLat,TLng,TAW,TAT,TAsp", "smddmmmmnDUmmn", "F0BBB00B0GG000" , true },
 
-// @LoggerMessage: ATRP
+// @LoggerMessage: ATRPR
 // @Description: Plane AutoTune
 // @Vehicles: Plane
 // @Field: TimeUS: Time since system startup
@@ -362,8 +365,48 @@ const struct LogStructure Plane::log_structure[] = {
 // @Field: Action: action taken
 // @Field: RMAX: Rate maximum
 // @Field: TAU: time constant
-    { LOG_ATRP_MSG, sizeof(AP_AutoTune::log_ATRP),
+    { LOG_ATRPR_MSG, sizeof(AP_AutoTune::log_ATRP),
+      "ATRR", "QBBffffffffBff", "TimeUS,Axis,State,Sur,PSlew,DSlew,FF0,FF,P,I,D,Action,RMAX,TAU", "s#-dkk------ks", "F--00000000-00" , true },
+
+// @LoggerMessage: ATRPP
+// @Description: Plane AutoTune
+// @Vehicles: Plane
+// @Field: TimeUS: Time since system startup
+// @Field: Axis: tuning axis
+// @Field: State: tuning state
+// @Field: Sur: control surface deflection
+// @Field: PSlew: P slew rate
+// @Field: DSlew: D slew rate
+// @Field: FF0: FF value single sample
+// @Field: FF: FF value
+// @Field: P: P value
+// @Field: I: I value
+// @Field: D: D value
+// @Field: Action: action taken
+// @Field: RMAX: Rate maximum
+// @Field: TAU: time constant
+    { LOG_ATRPP_MSG, sizeof(AP_AutoTune::log_ATRP),
       "ATRP", "QBBffffffffBff", "TimeUS,Axis,State,Sur,PSlew,DSlew,FF0,FF,P,I,D,Action,RMAX,TAU", "s#-dkk------ks", "F--00000000-00" , true },
+
+// @LoggerMessage: ATRPY
+// @Description: Plane AutoTune
+// @Vehicles: Plane
+// @Field: TimeUS: Time since system startup
+// @Field: Axis: tuning axis
+// @Field: State: tuning state
+// @Field: Sur: control surface deflection
+// @Field: PSlew: P slew rate
+// @Field: DSlew: D slew rate
+// @Field: FF0: FF value single sample
+// @Field: FF: FF value
+// @Field: P: P value
+// @Field: I: I value
+// @Field: D: D value
+// @Field: Action: action taken
+// @Field: RMAX: Rate maximum
+// @Field: TAU: time constant
+    { LOG_ATRPY_MSG, sizeof(AP_AutoTune::log_ATRP),
+      "ATRY", "QBBffffffffBff", "TimeUS,Axis,State,Sur,PSlew,DSlew,FF0,FF,P,I,D,Action,RMAX,TAU", "s#-dkk------ks", "F--00000000-00" , true },
 
 // @LoggerMessage: STAT
 // @Description: Current status of the aircraft

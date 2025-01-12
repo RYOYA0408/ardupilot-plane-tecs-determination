@@ -756,7 +756,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
                 ) ;
             }
             // 接点 flex_prev_WP_loc まで円周上を飛行する
-            nav_controller->update_loiter(prev_WP_loc, prev_WP_radius, -prev_WP_direction);
+            nav_controller->update_loiter(prev_WP_loc, prev_WP_radius, -prev_WP_direction, false);
         }
     // Turning point 周回経路に乗っていない
     } else {
@@ -776,7 +776,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     // 目標点への近接判定
     // Turning point 円周上を飛行中でない
     if (!auto_state.tp_circle_mode) {
-        float acceptance_distance_m = nav_controller->turn_distance(next_WP_radius, auto_state.next_turn_angle);
+        float acceptance_distance_m = next_WP_radius * 0.4f;
         const float tp_dist = current_loc.get_distance(flex_next_WP_loc);
         if (tp_dist <= acceptance_distance_m) {
             gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point #%i dist %um",
@@ -796,18 +796,9 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
         }
     // Turning point 円周上を飛行中
     } else {
-        // Turning point 中心から円周上の目標地点までのベクトル
-        Vector2f ab = prev_WP_loc.get_distance_NE(flex_prev_WP_loc);
-        float theta_ab = atan2f(ab.y, ab.x);
-        // Turning point 中心から現在位置までのベクトル
-        Vector2f ac = prev_WP_loc.get_distance_NE(current_loc);
-        float theta_ac = atan2f(ac.y, ac.x);
-//        printf("%.2f, %.2f\n", degrees(theta_ab), degrees(theta_ac));
-        float rmax = theta_ab + radians(10.0);
-        float rmin = theta_ab - radians(10.0);
-        if ((theta_ac > rmin && theta_ac < rmax) ||
-            (theta_ac + 2.0*3.141593 > rmin && theta_ac + 2.0*3.141593 < rmax) ||
-            (theta_ac - 2.0*3.141593 > rmin && theta_ac - 2.0*3.141593 < rmax)) {
+        float acceptance_distance_m = L1_controller.get_L1_dist();
+        const float tp_dist = current_loc.get_distance(flex_prev_WP_loc);
+        if (tp_dist <= acceptance_distance_m) {
             gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point end #%i dist %um",
                             (unsigned)mission.get_current_nav_cmd().index - 1,
                             (unsigned)current_loc.get_distance(flex_prev_WP_loc));
@@ -1111,10 +1102,12 @@ bool Plane::do_change_speed(uint8_t speedtype, float speed_target_ms, float thro
     case 0:             // Airspeed
         if (is_equal(speed_target_ms, -2.0f)) {
             new_airspeed_cm = -1; // return to default airspeed
+            landing.new_airspeed_cm = -1;
             return true;
         } else if ((speed_target_ms >= aparm.airspeed_min.get()) &&
                    (speed_target_ms <= aparm.airspeed_max.get()))  {
             new_airspeed_cm = speed_target_ms * 100; //new airspeed target for AUTO or GUIDED modes
+            landing.new_airspeed_cm = speed_target_ms * 100;
             gcs().send_text(MAV_SEVERITY_INFO, "Set airspeed %u m/s", (unsigned)speed_target_ms);
             return true;
         }

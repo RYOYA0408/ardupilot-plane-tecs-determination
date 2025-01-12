@@ -44,6 +44,7 @@ public:
     // return the crosstrack error in meters. This is the distance in
     // the X-Y plane that we are off the desired track
     virtual float crosstrack_error(void) const = 0;
+    virtual float crosstrack_ds(void) const = 0;
     virtual float crosstrack_error_integrator(void) const = 0;
 
     // return the distance in meters at which a turn should commence
@@ -76,7 +77,7 @@ public:
     // main flight code will call an output function (such as
     // nav_roll_cd()) after this function to ask for the new required
     // navigation attitude/steering.
-    virtual void update_loiter(const class Location &center_WP, float radius, int8_t loiter_direction) = 0;
+    virtual void update_loiter(const struct Location &center_WP, float radius, int8_t loiter_direction, bool scale_radius = true) = 0;
 
     // update the internal state of the navigation controller, given a
     // fixed heading. This is the step function for navigation control

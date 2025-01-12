@@ -275,6 +275,15 @@ void AP_L1_Control::update_waypoint(const Location &prev_WP, const Location &nex
 
     // calculate distance to target track, for reporting
     _crosstrack_error = A_air % AB;
+    // _current_loc から経路上への垂線の足 H の座標を求める
+    float t = AB * A_air;
+    Vector2f AH = AB * t;
+    float bearing = degrees(atan2f(AH.y, AH.x));
+    Location ct_loc = prev_WP; 
+    ct_loc.offset_bearing(bearing, AH.length());
+    _ct_ds = _crosstrack_error * (AH.length() - _ah_len);
+    _ct_ds = _ct_loc.get_distance(ct_loc) * _crosstrack_error;
+    _ct_loc = ct_loc;
 
     //Determine if the aircraft is behind a +-135 degree degree arc centred on WP A
     //and further than L1 distance from WP A. Then use WP A as the L1 reference point
@@ -355,7 +364,9 @@ void AP_L1_Control::update_loiter(const Location &center_WP, float radius, int8_
 
     // scale loiter radius with square of EAS2TAS to allow us to stay
     // stable at high altitude
-    radius = loiter_radius(fabsf(radius));
+    if (scale_radius) {
+        radius = loiter_radius(fabsf(radius));
+    }
 
     // Calculate guidance gains used by PD loop (used during circle tracking)
     float omega = (6.2832f / _L1_period);
@@ -424,6 +435,17 @@ void AP_L1_Control::update_loiter(const Location &center_WP, float radius, int8_
 
     // keep crosstrack error for reporting
     _crosstrack_error = xtrackErrCirc;
+    Vector2f A_r = center_WP.get_distance_NE(_ct_loc);
+    float th = 0;
+    if(A_air.length() > 0.1f && A_r.length() > 0.1f) {
+        th = acosf(A_air * A_r / A_air.length() / A_r.length());
+    }
+    _ct_ds = 0.5f * A_air.length()*A_air.length()*th - 0.5 * radius * radius * th;
+    _ah_len = 0;
+
+    float bearing = degrees(atan2f(A_air.y, A_air.x));
+    _ct_loc = center_WP;
+    _ct_loc.offset_bearing(bearing, radius);
 
     //Calculate PD control correction to circle waypoint_ahrs.roll
     float latAccDemCircPD = (xtrackErrCirc * Kx + xtrackVelCirc * Kv);
@@ -518,6 +540,8 @@ void AP_L1_Control::update_heading_hold(int32_t navigation_heading_cd)
     _last_loiter.reached_loiter_target_ms = 0;
 
     _crosstrack_error = 0;
+    _ct_ds = 0;
+    _ah_len = 0;
 
     _bearing_error = Nu; // bearing error angle (radians), +ve to left of track
 
@@ -536,6 +560,8 @@ void AP_L1_Control::update_level_flight(void)
     _nav_bearing = _ahrs.get_yaw();
     _bearing_error = 0;
     _crosstrack_error = 0;
+    _ct_ds = 0;
+    _ah_len = 0;
 
     // Waypoint capture status is always false during heading hold
     _WPcircle = false;

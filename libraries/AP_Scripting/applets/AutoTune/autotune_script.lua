@@ -4,8 +4,7 @@ local RC1 = rc:get_channel(1)
 local RC2 = rc:get_channel(2)
 
 local scripting_rc_0 = rc:find_channel_for_option(107) -- Auto tuning 開始用スイッチ ch
-local scripting_rc_1 = rc:find_channel_for_option(300) -- roll チューニング用スイッチ ch
-local scripting_rc_2 = rc:find_channel_for_option(301) -- pitch チューニング用スイッチ ch
+local scripting_rc_1 = rc:find_channel_for_option(300) -- roll,pitch チューニング用スイッチ ch
 
 local roll_running = false
 local pitch_running = false
@@ -32,6 +31,7 @@ function tune_roll(sw, tune_period)
     if not sw then
         if roll_running then
 --            vehicle:set_mode(prev_mode)
+            RC1:set_override(1500)
             gcs:send_text(0, string.format("Finished roll tuning script"))
         end
         roll_running = false
@@ -69,6 +69,7 @@ function tune_pitch(sw, tune_period)
     if not sw then
         if pitch_running then
 --            vehicle:set_mode(prev_mode)
+            RC2:set_override(1500)
             gcs:send_text(0, string.format("Finished pitch tuning script"))
         end
         pitch_running = false
@@ -97,15 +98,15 @@ function update()
     local mode = vehicle:get_mode()
     if mode == 10 and scripting_rc_0 and scripting_rc_1 then
         local sw_pos = scripting_rc_1:get_aux_switch_pos()
-        if tune_sw == 2 and sw_pos == 2 then 
+        if tune_sw == 2 and sw_pos == 1 then 
             tune_roll(true, 0.5)
         else
             tune_roll(false, 0.5)
         end
     end
 
-    if mode == 10 and scripting_rc_0 and scripting_rc_2 then
-        local sw_pos = scripting_rc_2:get_aux_switch_pos()
+    if mode == 10 and scripting_rc_0 and scripting_rc_1 then
+        local sw_pos = scripting_rc_1:get_aux_switch_pos()
         if tune_sw == 2 and sw_pos == 2 then 
             tune_pitch(true, 0.5)
         else

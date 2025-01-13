@@ -645,7 +645,7 @@ void AP_Airspeed::read(uint8_t i)
         // some time after the sensor becomes healthy again
         state[i].filtered_pressure = airspeed_pressure;
     } else {
-        state[i].filtered_pressure = 0.7f * state[i].filtered_pressure + 0.3f * airspeed_pressure;
+        state[i].filtered_pressure = 0.9f * state[i].filtered_pressure + 0.1f * airspeed_pressure;
     }
 
     /*
@@ -782,7 +782,7 @@ void AP_Airspeed::Log_Airspeed()
             LOG_PACKET_HEADER_INIT(LOG_ARSP_MSG),
             time_us       : now,
             instance      : i,
-            airspeed      : get_raw_airspeed(i),
+            airspeed      : get_airspeed(i),
             diffpressure  : get_differential_pressure(i),
             temperature   : (int16_t)(temperature * 100.0f),
             rawpressure   : get_corrected_pressure(i),

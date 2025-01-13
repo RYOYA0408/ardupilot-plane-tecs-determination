@@ -356,7 +356,7 @@ void AP_L1_Control::update_waypoint(const Location &prev_WP, const Location &nex
 }
 
 // update L1 control for loitering
-void AP_L1_Control::update_loiter(const Location &center_WP, float radius, int8_t loiter_direction, bool scale_raduis)
+void AP_L1_Control::update_loiter(const Location &center_WP, float radius, int8_t loiter_direction, bool scale_radius)
 {
     const float radius_unscaled = radius;
 

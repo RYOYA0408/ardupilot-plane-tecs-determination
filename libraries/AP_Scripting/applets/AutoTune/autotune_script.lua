@@ -18,11 +18,17 @@ local pitch_tuning_state = 0
 
 local prev_mode = 0
 function tune_roll(sw, tune_period)
+--    local lim_roll_deg = param:get("LIM_ROLL_CD")*0.01*0.8
+    local lim_roll_deg = 30 
     local now = millis():tofloat() * 0.001
-    if sw and not roll_running then
+    local roll = math.deg(ahrs:get_roll())
+    if sw and not roll_running and roll < 1.5 and roll > -1.5 then
         roll_running = true
-        roll_tuning_start_time = now - tune_period/2.0
+        --roll_tuning_start_time = now - tune_period/2.0
+        lim_roll_deg = lim_roll_deg/2.0
         roll_tuning_stage = 0
+        
+        
         prev_mode = vehicle:get_mode()
         -- Set mode to PLANE_MODE_AUTOTUNE
 --        vehicle:set_mode(8)
@@ -38,19 +44,22 @@ function tune_roll(sw, tune_period)
         roll_tuning_stage = 0
     end
 
+    --改造20240614
+    if roll_tuning_stage == 0 then
+        if roll > lim_roll_deg then
+            roll_tuning_stage =1
+        end
+    elseif roll_tuning_stage == 1 then
+        if roll < -lim_roll_deg then
+            roll_tuning_stage = 0
+        end
+    end 
+
     if roll_running then
         if roll_tuning_stage == 0 then
             RC1:set_override(1900)
         elseif roll_tuning_stage == 1 then
             RC1:set_override(1100)
-        end
-        if (now - roll_tuning_start_time) > tune_period then
-            roll_tuning_start_time = now
-            if roll_tuning_stage == 1 then
-                roll_tuning_stage = 0
-            elseif roll_tuning_stage == 0 then
-                roll_tuning_stage = 1
-            end
         end
     end
 end
@@ -99,18 +108,18 @@ function update()
     if mode == 10 and scripting_rc_0 and scripting_rc_1 then
         local sw_pos = scripting_rc_1:get_aux_switch_pos()
         if tune_sw == 2 and sw_pos == 1 then 
-            tune_roll(true, 0.5)
+            tune_roll(true, 0.6)
         else
-            tune_roll(false, 0.5)
+            tune_roll(false, 0.6)
         end
     end
 
     if mode == 10 and scripting_rc_0 and scripting_rc_1 then
         local sw_pos = scripting_rc_1:get_aux_switch_pos()
         if tune_sw == 2 and sw_pos == 2 then 
-            tune_pitch(true, 0.5)
+            tune_pitch(true, 0.8)
         else
-            tune_pitch(false, 0.5)
+            tune_pitch(false, 0.8)
         end
     end
 

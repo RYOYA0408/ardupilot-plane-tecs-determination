@@ -616,8 +616,9 @@ void AP_TECS::_update_height_demand(void)
         // bring it in linearly with height
         float p;
         if (_hgt_at_start_of_flare > _flare_holdoff_hgt) {
-            p = constrain_float((_hgt_at_start_of_flare - _hgt_afe) / (_hgt_at_start_of_flare - _flare_holdoff_hgt), 0.0f, 1.0f);
-        } else {
+//            p = constrain_float((_hgt_at_start_of_flare - _hgt_afe) / (_hgt_at_start_of_flare - _flare_holdoff_hgt), 0.0f, 1.0f);
+            p = 1.0f;
+	} else {
             p = 1.0f;
         }
         _hgt_rate_dem = _hgt_rate_at_flare_entry * (1.0f - p) - land_sink_rate_adj * p;
@@ -1440,8 +1441,9 @@ void AP_TECS::_update_pitch_limits(const int32_t ptchMinCO_cd) {
         if (!_flare_initialised) {
             p = 0.0f;
         } else if (_hgt_at_start_of_flare > _flare_holdoff_hgt) {
-            p = constrain_float((_hgt_at_start_of_flare - _hgt_afe) / _hgt_at_start_of_flare, 0.0f, 1.0f);
-        } else {
+//            p = constrain_float((_hgt_at_start_of_flare - _hgt_afe) / _hgt_at_start_of_flare, 0.0f, 1.0f);
+	    p = 1.0f;
+	} else {
             p = 1.0f;
         }
         const float pitch_limit_deg = (1.0f - p) * _pitch_min_at_flare_entry + p * 0.01f * _landing.get_pitch_cd();

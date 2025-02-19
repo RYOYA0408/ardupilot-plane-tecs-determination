@@ -25,6 +25,12 @@
 #if AP_DDS_MODE_SWITCH_SERVER_ENABLED
 #include "ardupilot_msgs/srv/ModeSwitch.h"
 #endif // AP_DDS_MODE_SWITCH_SERVER_ENABLED
+#if AP_DDS_ARM_CHECK_SERVER_ENABLED
+#include "std_srvs/srv/Trigger.h"
+#endif // AP_DDS_ARM_CHECK_SERVER_ENABLED
+#if AP_DDS_VTOL_TAKEOFF_SERVER_ENABLED
+#include "ardupilot_msgs/srv/Takeoff.h"
+#endif // AP_DDS_VTOL_TAKEOFF_SERVER_ENABLED
 
 #if AP_EXTERNAL_CONTROL_ENABLED
 #include "AP_DDS_ExternalControl.h"
@@ -35,6 +41,8 @@
 #include "AP_DDS_Topic_Table.h"
 #include "AP_DDS_Service_Table.h"
 #include "AP_DDS_External_Odom.h"
+
+#define STRCPY(D,S) strncpy(D, S, ARRAY_SIZE(D))
 
 // Enable DDS at runtime by default
 static constexpr uint8_t ENABLED_BY_DEFAULT = 1;
@@ -285,8 +293,8 @@ void AP_DDS_Client::populate_static_transforms(tf2_msgs_msg_TFMessage& msg)
         char gps_frame_id[16];
         //! @todo should GPS frame ID's be 0 or 1 indexed in ROS?
         hal.util->snprintf(gps_frame_id, sizeof(gps_frame_id), "GPS_%u", i);
-        strcpy(msg.transforms[i].header.frame_id, BASE_LINK_FRAME_ID);
-        strcpy(msg.transforms[i].child_frame_id, gps_frame_id);
+        STRCPY(msg.transforms[i].header.frame_id, BASE_LINK_FRAME_ID);
+        STRCPY(msg.transforms[i].child_frame_id, gps_frame_id);
         // The body-frame offsets
         // X - Forward
         // Y - Right
@@ -388,7 +396,7 @@ void AP_DDS_Client::update_topic(sensor_msgs_msg_BatteryState& msg, const uint8_
 void AP_DDS_Client::update_topic(geometry_msgs_msg_PoseStamped& msg)
 {
     update_topic(msg.header.stamp);
-    strcpy(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
 
     auto &ahrs = AP::ahrs();
     WITH_SEMAPHORE(ahrs.get_semaphore());
@@ -439,7 +447,7 @@ void AP_DDS_Client::update_topic(geometry_msgs_msg_PoseStamped& msg)
 void AP_DDS_Client::update_topic(geometry_msgs_msg_TwistStamped& msg)
 {
     update_topic(msg.header.stamp);
-    strcpy(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
 
     auto &ahrs = AP::ahrs();
     WITH_SEMAPHORE(ahrs.get_semaphore());
@@ -482,7 +490,7 @@ void AP_DDS_Client::update_topic(geometry_msgs_msg_TwistStamped& msg)
 bool AP_DDS_Client::update_topic(geometry_msgs_msg_Vector3Stamped& msg)
 {
     update_topic(msg.header.stamp);
-    strcpy(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
     auto &ahrs = AP::ahrs();
     WITH_SEMAPHORE(ahrs.get_semaphore());
     // In ROS REP 103, axis orientation uses the following convention:
@@ -511,7 +519,7 @@ bool AP_DDS_Client::update_topic(geometry_msgs_msg_Vector3Stamped& msg)
 void AP_DDS_Client::update_topic(geographic_msgs_msg_GeoPoseStamped& msg)
 {
     update_topic(msg.header.stamp);
-    strcpy(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
 
     auto &ahrs = AP::ahrs();
     WITH_SEMAPHORE(ahrs.get_semaphore());
@@ -552,7 +560,7 @@ void AP_DDS_Client::update_topic(geographic_msgs_msg_GeoPoseStamped& msg)
 void AP_DDS_Client::update_topic(sensor_msgs_msg_Imu& msg)
 {
     update_topic(msg.header.stamp);
-    strcpy(msg.header.frame_id, BASE_LINK_NED_FRAME_ID);
+    STRCPY(msg.header.frame_id, BASE_LINK_NED_FRAME_ID);
 
     auto &imu = AP::ins();
     auto &ahrs = AP::ahrs();
@@ -599,7 +607,7 @@ void AP_DDS_Client::update_topic(rosgraph_msgs_msg_Clock& msg)
 void AP_DDS_Client::update_topic(geographic_msgs_msg_GeoPointStamped& msg)
 {
     update_topic(msg.header.stamp);
-    strcpy(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
 
     auto &ahrs = AP::ahrs();
     WITH_SEMAPHORE(ahrs.get_semaphore());
@@ -812,6 +820,64 @@ void AP_DDS_Client::on_request(uxrSession* uxr_session, uxrObjectId object_id, u
         break;
     }
 #endif // AP_DDS_MODE_SWITCH_SERVER_ENABLED
+#if AP_DDS_VTOL_TAKEOFF_SERVER_ENABLED
+    case services[to_underlying(ServiceIndex::TAKEOFF)].rep_id: {
+        ardupilot_msgs_srv_Takeoff_Request takeoff_request;
+        ardupilot_msgs_srv_Takeoff_Response takeoff_response;
+        const bool deserialize_success = ardupilot_msgs_srv_Takeoff_Request_deserialize_topic(ub, &takeoff_request);
+        if (deserialize_success == false) {
+            break;
+        }
+        takeoff_response.status = AP::vehicle()->start_takeoff(takeoff_request.alt);
+
+        const uxrObjectId replier_id = {
+            .id = services[to_underlying(ServiceIndex::TAKEOFF)].rep_id,
+            .type = UXR_REPLIER_ID
+        };
+
+        uint8_t reply_buffer[8] {};
+        ucdrBuffer reply_ub;
+
+        ucdr_init_buffer(&reply_ub, reply_buffer, sizeof(reply_buffer));
+        const bool serialize_success = ardupilot_msgs_srv_Takeoff_Response_serialize_topic(&reply_ub, &takeoff_response);
+        if (serialize_success == false) {
+            break;
+        }
+
+        uxr_buffer_reply(uxr_session, reliable_out, replier_id, sample_id, reply_buffer, ucdr_buffer_length(&reply_ub));
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s Request for Takeoff : %s", msg_prefix, takeoff_response.status ? "SUCCESS" : "FAIL");
+        break;
+    }
+#endif // AP_DDS_VTOL_TAKEOFF_SERVER_ENABLED
+#if AP_DDS_ARM_CHECK_SERVER_ENABLED
+    case services[to_underlying(ServiceIndex::PREARM_CHECK)].rep_id: {
+        std_srvs_srv_Trigger_Request prearm_check_request;
+        std_srvs_srv_Trigger_Response prearm_check_response;
+        const bool deserialize_success = std_srvs_srv_Trigger_Request_deserialize_topic(ub, &prearm_check_request);
+        if (deserialize_success == false) {
+            break;
+        }
+        prearm_check_response.success = AP::arming().pre_arm_checks(false);
+        STRCPY(prearm_check_response.message, prearm_check_response.success ? "Vehicle is Armable" : "Vehicle is Not Armable");
+
+        const uxrObjectId replier_id = {
+            .id = services[to_underlying(ServiceIndex::PREARM_CHECK)].rep_id,
+            .type = UXR_REPLIER_ID
+        };
+
+        uint8_t reply_buffer[sizeof(prearm_check_response.message) + 1] {};
+        ucdrBuffer reply_ub;
+
+        ucdr_init_buffer(&reply_ub, reply_buffer, sizeof(reply_buffer));
+        const bool serialize_success = std_srvs_srv_Trigger_Response_serialize_topic(&reply_ub, &prearm_check_response);
+        if (serialize_success == false) {
+            break;
+        }
+
+        uxr_buffer_reply(uxr_session, reliable_out, replier_id, sample_id, reply_buffer, ucdr_buffer_length(&reply_ub));
+        break;
+    }
+#endif //AP_DDS_ARM_CHECK_SERVER_ENABLED
 #if AP_DDS_PARAMETER_SERVER_ENABLED
     case services[to_underlying(ServiceIndex::SET_PARAMETERS)].rep_id: {
         const bool deserialize_success = rcl_interfaces_srv_SetParameters_Request_deserialize_topic(ub, &set_parameter_request);

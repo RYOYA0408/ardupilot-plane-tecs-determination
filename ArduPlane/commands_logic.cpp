@@ -621,7 +621,7 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
 
     // depending on the pass by flag either go to waypoint in regular manner or
     // fly past it for set distance along the line of waypoints
-    Location flex_next_WP_loc = next_WP_loc;
+    flex_next_WP_loc = next_WP_loc;
 
     // TurningPoint 周回飛行が指定されていた，または TurningPoint 円周上を飛行中であれば
     if (cmd.content.location.loiter_ccw != 0 || auto_state.tp_circle_mode) {
@@ -697,7 +697,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
 
     // depending on the pass by flag either go to waypoint in regular manner or
     // fly past it for set distance along the line of waypoints
-    Location flex_next_WP_loc = next_WP_loc;
+    flex_next_WP_loc = next_WP_loc;
 
     // loiter_ccw: turning point と判断するためのフラグ
     // loiter_xtrack: turning point の周回方向 1:ccw, 0:cw
@@ -716,6 +716,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
 
     // Turning point 周回経路に乗っている
     if (auto_state.crosstrack) {
+        auto_state.tp_crosstrack = true;
         // Turning point 円周上を飛行中でない（Turning point 間の直線区間を飛行中）
         if (!auto_state.tp_circle_mode) {
             // 目標位置を前回位置から turning circle へ引いた接線の接点に設定
@@ -760,6 +761,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
         }
     // Turning point 周回経路に乗っていない
     } else {
+        auto_state.tp_crosstrack = false;
         auto_state.tp_circle_mode = false;
         // 目標位置を現在位置から turning circle へ引いた接線の接点に設定
         Vector2f air_B = current_loc.get_distance_NE(flex_next_WP_loc);

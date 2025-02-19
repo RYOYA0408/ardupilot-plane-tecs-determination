@@ -529,6 +529,9 @@ private:
         // should we use cross-tracking for this waypoint?
         bool crosstrack;
 
+        // should we use cross-tracking for this turning point?
+        bool tp_crosstrack;
+
         // in FBWA taildragger takeoff mode
         bool fbwa_tdrag_takeoff_mode;
 
@@ -768,6 +771,7 @@ private:
 
     // The location of the current/active waypoint.  Used for altitude ramp, track following and loiter calculations.
     Location next_WP_loc {};
+    Location flex_next_WP_loc {};
     float next_WP_radius;
     int8_t next_WP_direction;
 

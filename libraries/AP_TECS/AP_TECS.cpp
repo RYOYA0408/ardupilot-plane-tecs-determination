@@ -511,15 +511,8 @@ void AP_TECS::_update_speed_demand(void)
         _TAS_rate_dem = (_TAS_dem - TAS_dem_previous) / _DT;
         _TAS_dem_adj = _TAS_dem;
     }
-
-    // calculate a low pass filtered _TAS_rate_dem
-    if (_flags.reset) {
-        _TAS_dem_adj = _TAS_state;
-        _TAS_rate_dem_lpf = _TAS_rate_dem;
-    } else {
-        const float alpha = _DT / (_DT + timeConstant());
-        _TAS_rate_dem_lpf = _TAS_rate_dem_lpf * (1.0f - alpha) + _TAS_rate_dem * alpha;
-    }
+    const float alpha = _DT / (_DT + timeConstant());
+    _TAS_rate_dem_lpf = _TAS_rate_dem_lpf * (1.0f - alpha) + _TAS_rate_dem * alpha;
 
     // Constrain speed demand again to protect against bad values on initialisation.
     _TAS_dem_adj_2 = TAS_dem_previous;
@@ -1123,6 +1116,7 @@ void AP_TECS::_initialise_states(float hgt_afe)
     _flags.reset = false;
 
     if (_DT > 0.2f || _need_reset) {
+	printf("TECS is reset. _DT = %f, _need_reset = %d\n", _DT, _need_reset);
         _SKE_weighting        = 1.0f;
         _integTHR_state       = 0.0f;
         _integSEBdot          = 0.0f;
@@ -1133,7 +1127,6 @@ void AP_TECS::_initialise_states(float hgt_afe)
         _hgt_dem_lpf          = hgt_afe;
         _hgt_dem_rate_ltd     = hgt_afe;
         _hgt_dem_prev         = hgt_afe;
-        _TAS_dem_adj          = _TAS_dem;
         _flags.reset          = true;
         _DT                   = 0.02f; // when first starting TECS, use the most likely time constant
         _lag_comp_hgt_offset  = 0.0f;

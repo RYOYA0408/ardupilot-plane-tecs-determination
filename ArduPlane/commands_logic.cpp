@@ -779,7 +779,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     // 目標点への近接判定
     // Turning point 円周上を飛行中でない
     if (!auto_state.tp_circle_mode) {
-        float acceptance_distance_m = next_WP_radius * 0.4f;
+        float acceptance_distance_m = 0.5*L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_next_WP_loc);
         if (tp_dist <= acceptance_distance_m) {
             gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point #%i dist %um",

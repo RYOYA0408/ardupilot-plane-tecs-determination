@@ -62,6 +62,7 @@ void ModeRTL::update()
 
     if (!plane.rtl.done_climb && alt_threshold_reached) {
         plane.prev_WP_loc = plane.current_loc;
+        plane.flex_prev_WP_loc = plane.current_loc;
         plane.setup_glide_slope();
         plane.rtl.done_climb = true;
     }

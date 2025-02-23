@@ -173,9 +173,7 @@ void Mode::update_target_altitude()
     Location target_location;
 
     if (plane.landing.is_flaring()) {
-        // during a landing flare, use TECS_LAND_SINK as a target sink
-        // rate, and ignores the target altitude
-        plane.set_target_altitude_location(plane.next_WP_loc);
+        plane.landing.setup_landing_glide_slope(plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.target_altitude.offset_cm);
     } else if (plane.landing.is_on_approach()) {
         plane.landing.setup_landing_glide_slope(plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.target_altitude.offset_cm);
 #if AP_RANGEFINDER_ENABLED

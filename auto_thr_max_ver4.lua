@@ -55,12 +55,12 @@ function tune_thr_max()
             local thr_now = SRV_Channels:get_output_scaled(k_throttle)
             if tas_now < (tas_target - tas_error) then
                 -- 速度が不足している場合
-                local thr_plus = math.min(thr_now + thr_buff, 100)
+                local thr_plus = constrain(thr_now + thr_buff, 10, 100)
                 vehicle:set_target_throttle_rate_rpy(thr_plus, 0, 0, 0)
                 gcs:send_text(6, string.format("Plus throttle to %.2f%%", thr_plus))
             elseif tas_now > (tas_target + tas_error) then
                 -- 速度が過剰な場合
-                local thr_minus = math.max(thr_now - thr_buff, 10)
+                local thr_minus = constrain(thr_now - thr_buff, 10, 100)
                 vehicle:set_target_throttle_rate_rpy(thr_minus, 0, 0, 0)
                 gcs:send_text(6, string.format("Minus throttle to %.2f%%", thr_minus))
             else

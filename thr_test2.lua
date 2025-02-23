@@ -33,5 +33,3 @@ vehicle:nav_script_time_done(id)
 vehicle:set_target_throttle_rate_rpy(80, 0, 0, 0)
 vehicle:nav_script_time_done(id)
 ]]--
-
-SRV_Channels:set_angle(2, 28)

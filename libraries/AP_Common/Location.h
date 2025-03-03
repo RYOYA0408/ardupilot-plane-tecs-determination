@@ -179,6 +179,14 @@ public:
         Location &ctp2    // 円2 の共通接点
         );
 
+    // 中心と他の2点がなす角を求める
+    float Location::3pt_angle_deg(
+        const Location center,      // 中心
+        const Location pt1,         // 点1
+        const Location pt2,         // 点2
+        const int8_t dir            // 点1から点２へ向かう回転方向 -1=cw, 1=ccw
+        );
+
 private:
 
     // scaling factor from 1e-7 degrees to meters at equator

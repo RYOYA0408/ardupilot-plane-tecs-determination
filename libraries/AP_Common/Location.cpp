@@ -609,12 +609,12 @@ void Location::common_tangent_point(
 /*
   中心と他の2点がなす角を求める
 */
-float Location::3pt_angle_deg(
+float Location::pt3_angle_deg(
     const Location A,       // 中心
     const Location B,       // 点1
     const Location C,       // 点2
     const int8_t dir        // 点1から点２へ向かう回転方向 -1=cw, 1=ccw
-)
+    )
 {
     float ret = 0;
     Vector2f AB = A.get_distance_NE(B);

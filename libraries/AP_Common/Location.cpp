@@ -606,4 +606,38 @@ void Location::common_tangent_point(
     }
 }
 
+/*
+  中心と他の2点がなす角を求める
+*/
+float Location::pt3_angle_deg(
+    const Location A,       // 中心
+    const Location B,       // 点1
+    const Location C,       // 点2
+    const int8_t dir        // 点1から点２へ向かう回転方向 -1=cw, 1=ccw
+    )
+{
+    float ret = 0;
+    Vector2f AB = A.get_distance_NE(B);
+    Vector2f AC = A.get_distance_NE(C);
+    // 角度(rad)
+    float angle = AB.angle(AC);
+    // 外積AB×AC
+    crossProduct = AB % AC;
+
+    // 回転方向から角度を調整
+    if(dir == -1){          // cw
+        if(crossProduct < 0){
+            angle = 2 * M_PI - angle;
+        }
+    }else{                  // ccw
+        if(crossProduct > 0){
+            angle = 2 * M_PI - angle
+        }            
+    }
+
+    ret = angle * 180.0 / M_PI;
+
+    return ret;
+}
+
 #endif // HAL_BOOTLOADER_BUILD

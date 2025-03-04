@@ -764,7 +764,8 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     // Turning point 周回経路に乗っていない
     } else {
         auto_state.tp_circle_mode = false;
-        // 目標位置を現在位置から turning circle へ引いた接線の接点に設定
+        loiter_start_point = flex_next_WP_loc
+        // 目標位置を現在位置から turning circle へ引いた接線の接点に設定hmjmmm
         Vector2f air_B = current_loc.get_distance_NE(flex_next_WP_loc);
         float air_B_Length = air_B.length();
         float theta = next_WP_direction * asinf(next_WP_radius/MAX(air_B_Length, 0.1));
@@ -786,6 +787,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
                             (unsigned)mission.get_current_nav_cmd().index,
                             (unsigned)current_loc.get_distance(flex_next_WP_loc));
             auto_state.tp_circle_mode = true;
+            loiter.start_point = flex_next_WP_loc;
             return true;
         }
 
@@ -795,13 +797,22 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
                             (unsigned)mission.get_current_nav_cmd().index,
                             (unsigned)current_loc.get_distance(flex_next_WP_loc));
             auto_state.tp_circle_mode = true;
+            loiter.start_point = flex_next_WP_loc;
             return true;
         }
     // Turning point 円周上を飛行中
     } else {
+        // 周回円上を旋回すべき角度
+        float loiter_deg = flex_prev_WP_loc.pt3_angle_deg(
+            prev_WP_loc,
+            loiter.start_point,
+            flex_prev_WP_loc,
+            prev_WP_direction
+        );
+        bool c1 = loiter.sum_cd / 100.0 > loiter_deg * 3.0/4.0;         // 旋回角度が旋回すべき角度の 3/4 を超えたかどうか
         float acceptance_distance_m = L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_prev_WP_loc);
-        if (tp_dist <= acceptance_distance_m) {
+        if (tp_dist <= acceptance_distance_m && c1) {       // 目標点への近接判定
             gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point end #%i dist %um",
                             (unsigned)mission.get_current_nav_cmd().index - 1,
                             (unsigned)current_loc.get_distance(flex_prev_WP_loc));

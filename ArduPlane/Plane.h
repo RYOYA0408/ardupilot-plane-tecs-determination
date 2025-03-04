@@ -743,6 +743,9 @@ private:
 
         // current value of loiter radius in metres used by the controller
         float radius;
+        
+        // Loiter スタート地点。
+        Location start_point;
     } loiter;
 
     // Conditional command

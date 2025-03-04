@@ -622,7 +622,7 @@ float Location::pt3_angle_deg(
     // 角度(rad)
     float angle = AB.angle(AC);
     // 外積AB×AC
-    crossProduct = AB % AC;
+    float crossProduct = AB % AC;
 
     // 回転方向から角度を調整
     if(dir == -1){          // cw
@@ -631,7 +631,7 @@ float Location::pt3_angle_deg(
         }
     }else{                  // ccw
         if(crossProduct > 0){
-            angle = 2 * M_PI - angle
+            angle = 2 * M_PI - angle;
         }            
     }
 

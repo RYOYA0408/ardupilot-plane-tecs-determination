@@ -764,7 +764,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     // Turning point 周回経路に乗っていない
     } else {
         auto_state.tp_circle_mode = false;
-        loiter_start_point = flex_next_WP_loc
+        loiter.start_point = flex_next_WP_loc;
         // 目標位置を現在位置から turning circle へ引いた接線の接点に設定hmjmmm
         Vector2f air_B = current_loc.get_distance_NE(flex_next_WP_loc);
         float air_B_Length = air_B.length();
@@ -809,9 +809,10 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             flex_prev_WP_loc,
             prev_WP_direction
         );
-        bool c1 = loiter.sum_cd / 100.0 > loiter_deg * 3.0/4.0;         // 旋回角度が旋回すべき角度の 3/4 を超えたかどうか
+        bool c1 = fabs(loiter.sum_cd / 100.0) > loiter_deg * 3.0/4.0;         // 旋回角度が旋回すべき角度の 3/4 を超えたかどうか
         float acceptance_distance_m = L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_prev_WP_loc);
+	printf("sum_cd = %d, loiter_deg = %f, c1=%d\n", loiter.sum_cd, loiter_deg, c1); 
         if (tp_dist <= acceptance_distance_m && c1) {       // 目標点への近接判定
             gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point end #%i dist %um",
                             (unsigned)mission.get_current_nav_cmd().index - 1,

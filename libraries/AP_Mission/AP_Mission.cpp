@@ -2453,8 +2453,12 @@ bool AP_Mission::jump_to_landing_sequence(const Location &current_loc)
  */
 void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc)
 {
-    Location A = current_loc;
-    Location B;
+    Location A = current_loc;       // 現在位置
+    Location B;                     // 次の WP または TP
+    Location C;                     // A から TurnPoint B へ引いた接線の接点
+    Location D;                     // TurnPoint B を離れる点
+    Location E;                     // D を決めるための次の WP または TP
+    Location F;                     // E が TP だった場合の E上の接点
     float total_dist = 0;
     const auto count = num_commands();
     // DO_LAND_START 以降のミッションコマンドを読み込む
@@ -2465,7 +2469,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             continue;
         }
         // ミッションコマンドは NAV_WAYPOINT か
-        if(cmd.id == MAV_CMD_NAV_WAYPOINT){
+        if(cmd.id == MAV_CMD_NAV_WAYPOINT || cmd.id == MAV_CMD_NAV_LAND){
             B = cmd.content.location;
             // ウェイポイントの座標は正常か
             if(!B.initialised()){
@@ -2479,48 +2483,44 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             }
             // ターンポイントの場合，現在地点からターンポイント接点までの距離を積算する
             else{
-                Location tangentPoint;
-                total_dist += get_dist_wp2tp(A, B, tangentPoint, cmd);
+                total_dist += get_dist_wp2tp(A, B, C, cmd);
                 // 更にターンポイントを離れる点を求め，旋回円弧の長さを積算する。
                 // 次のミッションを調べる
                 Mission_Command cmd2;
-                Location tangentPointB, tangentPointD;
                 if(i+1 < count && get_next_nav_cmd(i+1, cmd2)){
                     // ウェイポイントなら
                     if(cmd2.id == MAV_CMD_NAV_WAYPOINT){
-                        D = cmd2.content.location;
-                        if(!D.initialised()){
+                        E = cmd2.content.location;
+                        if(!E.initialised()){
                             continue;
                         }
                         // 通常のウェイポイントなら，接線を求める
-                        if(D.loiter_ccw ==0){
+                        if(E.loiter_ccw ==0){
                             // TurnPointの旋回方向を逆にする必要がある
                             if(B.loiter_xtrack ==1) B.loiter_xtrack = 0;
                             else B.loiter_xtrack = 1;
-                            total_dist += get_dist_wp2tp(D, B, tangentPoint, cmd2);
+                            get_dist_wp2tp(E, B, D, cmd2);
                         }
                         // ターンポイントなら共通接線を求める
                         else{
                             // 次の周回円周との共通接点を求める
                             prev_WP_loc.common_tangent_point(
                                 B,                      // 円1 の中心
-                                D,                      // 円2 の中心
+                                E,                      // 円2 の中心
                                 tp_radius(cmd),         // 円1 の半径
                                 tp_radius(cmd2),        // 円2 の半径
                                 tp_dir(B),              // 円1 の回転方向 -1=cw, 1=ccw
-                                tp_dir(D),              // 円2 の回転方向 -1=cw, 1=ccw
-                                tangentPointB,          // 円1 の共通接点
-                                tangentPointD           // 円2 の共通接点
+                                tp_dir(E),              // 円2 の回転方向 -1=cw, 1=ccw
+                                D,                      // 円1 の共通接点
+                                F                       // 円2 の共通接点
                             ) ;
-                            total_dist += tangentPointB.get_distance(tangentPointD);
                         }
+                        float deg = B.pt3_angle_deg(C, D, tp_dir(B));   // 旋回角
+                        total_dist += tp_radius(cmd)*deg/180*M_PI  // 旋回経路長さ
+                        A = D;
                     }
                 }
             }
-        }
-        // ミッションコマンドは NAV_LAND か
-        else if(cmd.id == MAV_CMD_NAV_LAND){
-            B = cmd.content.location;
         }
     }
 }

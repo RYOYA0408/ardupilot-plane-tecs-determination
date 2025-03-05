@@ -672,6 +672,19 @@ public:
     // jumps the mission to the closest landing abort that is planned, returns false if unable to find a valid abort
     bool jump_to_abort_landing_sequence(const Location &current_loc);
 
+    //   DO_LAND_START 以降のミッションを追跡し，着陸点までの経路積算距離を取得する。
+    void get_total_dist_for_land(uint16_t land_idx, Location current_loc);
+    
+    // TurnPoint の半径を返す
+    float tp_radius(Mission_Command cmd);
+    
+    // TurnPoint の旋回方向を返す
+    int tp_dir(Location TP);
+
+    // WayPoint と TurnPoint を結ぶ接線の接点までの距離を求める
+    float get_dist_wp2tp(Location WP, Location TP, Location &tangentPoint, Mission_Command cmd)
+
+
     // Scripting helpers for the above functions to fill in the location
 #if AP_SCRIPTING_ENABLED
     bool jump_to_landing_sequence(void);

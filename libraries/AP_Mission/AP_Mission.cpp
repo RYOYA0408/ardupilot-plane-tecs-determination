@@ -2438,13 +2438,146 @@ bool AP_Mission::jump_to_landing_sequence(const Location &current_loc)
         if (state() == AP_Mission::MISSION_STOPPED) {
             resume();
         }
-
+        // DO_LAND_START 以降のミッションを追跡し，着陸点までの経路距離を取得する。
+        get_total_dist_for_land(land_idx, current_loc);
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Landing sequence start");
         return true;
     }
 
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Unable to start landing sequence");
     return false;
+}
+
+/*
+   DO_LAND_START 以降のミッションを追跡し，着陸点までの経路積算距離を取得する。
+ */
+void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc)
+{
+    Location A = current_loc;
+    Location B;
+    float total_dist = 0;
+    const auto count = num_commands();
+    // DO_LAND_START 以降のミッションコマンドを読み込む
+    for (uint16_t i = land_idx; i < count; i++){
+        Mission_Command cmd;
+        // ミッションコマンドを読み込めたか
+        if(!get_next_nav_cmd(i, cmd)){
+            continue;
+        }
+        // ミッションコマンドは NAV_WAYPOINT か
+        if(cmd.id == MAV_CMD_NAV_WAYPOINT){
+            B = cmd.content.location;
+            // ウェイポイントの座標は正常か
+            if(!B.initialised()){
+                // command does not have a valid location and cannot get next valid
+                continue;
+            }
+            // 通常のウェイポイントの場合，現在地点からの距離を積算する
+            if(B.loiter_ccw == 0){
+                total_dist += A.get_distance(B);
+                A = B;
+            }
+            // ターンポイントの場合，現在地点からターンポイント接点までの距離を積算する
+            else{
+                Location tangentPoint;
+                total_dist += get_dist_wp2tp(A, B, tangentPoint, cmd);
+                // 更にターンポイントを離れる点を求め，旋回円弧の長さを積算する。
+                // 次のミッションを調べる
+                Mission_Command cmd2;
+                Location tangentPointB, tangentPointD;
+                if(i+1 < count && get_next_nav_cmd(i+1, cmd2)){
+                    // ウェイポイントなら
+                    if(cmd2.id == MAV_CMD_NAV_WAYPOINT){
+                        D = cmd2.content.location;
+                        if(!D.initialised()){
+                            continue;
+                        }
+                        // 通常のウェイポイントなら，接線を求める
+                        if(D.loiter_ccw ==0){
+                            // TurnPointの旋回方向を逆にする必要がある
+                            if(B.loiter_xtrack ==1) B.loiter_xtrack = 0;
+                            else B.loiter_xtrack = 1;
+                            total_dist += get_dist_wp2tp(D, B, tangentPoint, cmd2);
+                        }
+                        // ターンポイントなら共通接線を求める
+                        else{
+                            // 次の周回円周との共通接点を求める
+                            prev_WP_loc.common_tangent_point(
+                                B,                      // 円1 の中心
+                                D,                      // 円2 の中心
+                                tp_radius(cmd),         // 円1 の半径
+                                tp_radius(cmd2),        // 円2 の半径
+                                tp_dir(B),              // 円1 の回転方向 -1=cw, 1=ccw
+                                tp_dir(D),              // 円2 の回転方向 -1=cw, 1=ccw
+                                tangentPointB,          // 円1 の共通接点
+                                tangentPointD           // 円2 の共通接点
+                            ) ;
+                            total_dist += tangentPointB.get_distance(tangentPointD);
+                        }
+                    }
+                }
+            }
+        }
+        // ミッションコマンドは NAV_LAND か
+        else if(cmd.id == MAV_CMD_NAV_LAND){
+            B = cmd.content.location;
+        }
+    }
+}
+
+/*
+  TurnPoint の半径を返す
+*/
+float AP_Mission::tp_radius(Mission_Command cmd)
+{
+    float radius = HIGHBYTE(cmd.p1);
+    if(radius < 1) radius = g.waypoint_radius;
+    return radius;
+}
+
+/*
+  TurnPoint の旋回方向を返す
+*/
+int AP_Mission::tp_dir(Location TP)
+{
+    int dir;
+    if(TP.loiter_xtrack == 1) dir = 1;
+    else dir = -1;
+    return dir;
+}
+
+/*
+  WayPoint と TurnPoint を結ぶ接線の接点までの距離を求める
+*/
+float AP_Mission::get_dist_wp2tp(Location WP, Location TP, Location &tangentPoint, Mission_Command cmd)
+{
+    // TurnPoint の旋回方向
+    // loiter_ccw: turning point と判断するためのフラグ
+    // loiter_xtrack: turning point の周回方向 1:ccw, 0:cw
+    int dir;
+    if (TP.loiter_xtrack == 1) {
+        dir = 1;      // ccw
+    } else {
+        dir = -1;     // cw
+    }
+    // TurnPoint の旋回半径
+    radius = HIGHBYTE(cmd.p1); // radius of turning point
+    if (radius < 1) {
+        radius = g.waypoint_radius;
+    }
+
+    // 目標位置を前回位置から turning circle へ引いた接線の接点に設定
+    Vector2f wp2tp = WP.get_distance_NE(TP);
+    float wp2tp_len = wp2tp.length();
+    float theta = dir * asinf(radius/MAX(AB_Length, 0.1));
+    theta += dir * 1.5707963f;    // 1.5707963 = pi/2
+    Vector2f v_tmp = wp2tp;
+    v_tmp.rotate(theta);
+    float bearing = degrees(atan2f(v_tmp.y, v_tmp.x));
+    tangentPoint = TP;
+    tangentPoint.offset_bearing(bearing, radius);
+
+    return WP.get_distance(TP);
 }
 
 /*

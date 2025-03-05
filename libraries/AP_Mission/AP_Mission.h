@@ -682,7 +682,7 @@ public:
     int tp_dir(Location TP);
 
     // WayPoint と TurnPoint を結ぶ接線の接点までの距離を求める
-    float get_dist_wp2tp(Location WP, Location TP, Location &tangentPoint, Mission_Command cmd)
+    float get_dist_wp2tp(Location WP, Location TP, Location &tangentPoint, Mission_Command cmd);
 
 
     // Scripting helpers for the above functions to fill in the location

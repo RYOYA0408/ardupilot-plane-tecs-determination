@@ -2504,7 +2504,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                         // ターンポイントなら共通接線を求める
                         else{
                             // 次の周回円周との共通接点を求める
-                            prev_WP_loc.common_tangent_point(
+                            B.common_tangent_point(
                                 B,                      // 円1 の中心
                                 E,                      // 円2 の中心
                                 tp_radius(cmd),         // 円1 の半径
@@ -2516,7 +2516,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                             ) ;
                         }
                         float deg = B.pt3_angle_deg(C, D, tp_dir(B));   // 旋回角
-                        total_dist += tp_radius(cmd)*deg/180*M_PI  // 旋回経路長さ
+                        total_dist += tp_radius(cmd)*deg/180*M_PI;  // 旋回経路長さ
                         A = D;
                     }
                 }
@@ -2531,7 +2531,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
 float AP_Mission::tp_radius(Mission_Command cmd)
 {
     float radius = HIGHBYTE(cmd.p1);
-    if(radius < 1) radius = g.waypoint_radius;
+    if(radius < 1) radius = 70;
     return radius;
 }
 
@@ -2561,15 +2561,15 @@ float AP_Mission::get_dist_wp2tp(Location WP, Location TP, Location &tangentPoin
         dir = -1;     // cw
     }
     // TurnPoint の旋回半径
-    radius = HIGHBYTE(cmd.p1); // radius of turning point
+    float radius = HIGHBYTE(cmd.p1); // radius of turning point
     if (radius < 1) {
-        radius = g.waypoint_radius;
+        radius = 70;
     }
 
     // 目標位置を前回位置から turning circle へ引いた接線の接点に設定
     Vector2f wp2tp = WP.get_distance_NE(TP);
     float wp2tp_len = wp2tp.length();
-    float theta = dir * asinf(radius/MAX(AB_Length, 0.1));
+    float theta = dir * asinf(radius/MAX(wp2tp_len, 0.1));
     theta += dir * 1.5707963f;    // 1.5707963 = pi/2
     Vector2f v_tmp = wp2tp;
     v_tmp.rotate(theta);

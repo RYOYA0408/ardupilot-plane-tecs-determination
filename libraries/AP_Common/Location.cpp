@@ -616,8 +616,8 @@ float Location::pt3_angle_deg(
     )
 {
     float ret = 0;
-    Vector2f AB = A.get_distance_NE(B);
-    Vector2f AC = A.get_distance_NE(C);
+    Vector2f AB = get_distance_NE(B);
+    Vector2f AC = get_distance_NE(C);
     // 角度(rad)
     float angle = AB.angle(AC);
     // 外積AB×AC

@@ -803,8 +803,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     // Turning point 円周上を飛行中
     } else {
         // 周回円上を旋回すべき角度
-        float loiter_deg = flex_prev_WP_loc.pt3_angle_deg(
-            prev_WP_loc,
+        float loiter_deg = prev_WP_loc.pt3_angle_deg(
             loiter.start_point,
             flex_prev_WP_loc,
             prev_WP_direction

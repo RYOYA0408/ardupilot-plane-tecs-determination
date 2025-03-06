@@ -2464,7 +2464,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
     float total_dist = 0;
     const auto count = num_commands();
     // DO_LAND_START 以降のミッションコマンドを読み込む
-    for (uint16_t i = land_idx; i < count; i++){
+    for (uint16_t i = land_idx+1; i < count; i++){
         Mission_Command cmd;
         // ミッションコマンドを読み込めたか
         if(!get_next_nav_cmd(i, cmd)){
@@ -2472,7 +2472,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
         }
         // ミッションコマンドは NAV_WAYPOINT か
         if(cmd.id == MAV_CMD_NAV_WAYPOINT || cmd.id == MAV_CMD_NAV_LAND){
-            B = cmd.content.location;
+	    B = cmd.content.location;
             // ウェイポイントの座標は正常か
             if(!B.initialised()){
                 // command does not have a valid location and cannot get next valid
@@ -2532,22 +2532,18 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
     if (!current_loc.get_alt_cm(current_loc.get_alt_frame(), curr_alt)) {
         curr_alt = current_loc.alt;
     }
-    total_dist = max(total_dist, 1.0);
-    float glide_slope_deg = degrees(atanf((curr_alt*100.0)/total_dist));
+    total_dist = MAX(total_dist, 1.0);
+    float glide_slope_deg = degrees(atanf((curr_alt/100.0)/total_dist));
     int additional_turn_number = 0;
     // グライドスロープが 3deg を上回る場合，TurnPoint の周回数を増やす
-    if(last_tp.initialised() && fabs(last_tp_radius)<10.0){
+    if(last_tp.initialised() && fabs(last_tp_radius)>10.0){
         while(glide_slope_deg > 3.0){
             additional_turn_number ++;
             total_dist += 2.0*M_PI*last_tp_radius;
-            total_dist = max(total_dist, 1.0);
-            glide_slope_deg = degrees(atanf((curr_alt*100.0)/total_dist));
+            total_dist = MAX(total_dist, 1.0);
+            glide_slope_deg = degrees(atanf((curr_alt/100.0)/total_dist));
         }
     }
-    printf(
-        "additional_turn_number = %d, total_dist = %f, glide_slope_deg = %f\n",
-        additional_turn_number, total_dist, glide_slope_deg
-    );
 }
 
 /*
@@ -2602,7 +2598,7 @@ float AP_Mission::get_dist_wp2tp(Location WP, Location TP, Location &tangentPoin
     tangentPoint = TP;
     tangentPoint.offset_bearing(bearing, radius);
 
-    return WP.get_distance(TP);
+    return WP.get_distance(tangentPoint);
 }
 
 /*

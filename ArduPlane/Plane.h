@@ -557,6 +557,12 @@ private:
 
         // are we circle tracking mode for this turning point? 
         bool tp_circle_mode;
+
+        //
+        float rtl_land_seq_total_distance;
+
+        float rtl_land_seq_initial_hgt;
+        
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED

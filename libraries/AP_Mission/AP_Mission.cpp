@@ -2,7 +2,7 @@
 /// @brief   Handles the MAVLINK command mission stack.  Reads and writes mission to storage.
 
 #include "AP_Mission_config.h"
-
+#include "Plane.h"
 #if AP_MISSION_ENABLED
 
 #include <AP_AHRS/AP_AHRS.h>

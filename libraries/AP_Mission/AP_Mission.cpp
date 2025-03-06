@@ -2459,6 +2459,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
     Location D;                     // TurnPoint B を離れる点
     Location E;                     // D を決めるための次の WP または TP
     Location F;                     // E が TP だった場合の E上の接点
+    Location last_tp;               // 経路上の最後の TurnPoint
+    float last_tp_radius = 0;           // 経路上の最後の TurnPoint の半径
     float total_dist = 0;
     const auto count = num_commands();
     // DO_LAND_START 以降のミッションコマンドを読み込む
@@ -2483,6 +2485,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             }
             // ターンポイントの場合，現在地点からターンポイント接点までの距離を積算する
             else{
+                last_tp = B;
+                last_tp_radius = tp_radius(cmd);
                 total_dist += get_dist_wp2tp(A, B, C, cmd);
                 // 更にターンポイントを離れる点を求め，旋回円弧の長さを積算する。
                 // 次のミッションを調べる
@@ -2523,6 +2527,27 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             }
         }
     }
+    // total_dist と現在の高度からグライドスロープを求める
+    int32_t curr_alt;
+    if (!current_loc.get_alt_cm(current_loc.get_alt_frame(), curr_alt)) {
+        curr_alt = current_loc.alt;
+    }
+    total_dist = max(total_dist, 1.0);
+    float glide_slope_deg = degrees(atanf((curr_alt*100.0)/total_dist));
+    int additional_turn_number = 0;
+    // グライドスロープが 3deg を上回る場合，TurnPoint の周回数を増やす
+    if(last_tp.initialised() && fabs(last_tp_radius)<10.0){
+        while(glide_slope_deg > 3.0){
+            additional_turn_number ++;
+            total_dist += 2.0*M_PI*last_tp_radius;
+            total_dist = max(total_dist, 1.0);
+            glide_slope_deg = degrees(atanf((curr_alt*100.0)/total_dist));
+        }
+    }
+    printf(
+        "additional_turn_number = %d, total_dist = %f, glide_slope_deg = %f\n",
+        additional_turn_number, total_dist, glide_slope_deg
+    );
 }
 
 /*

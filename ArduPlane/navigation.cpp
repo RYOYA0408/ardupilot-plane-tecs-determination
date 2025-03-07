@@ -108,7 +108,7 @@ void Plane::navigate()
         float bearing = current_loc.get_bearing(flex_next_WP_loc);
         float ahead_dist = auto_state.wp_distance - L1_controller.get_L1_dist();
         Location ahead_next_WP_loc = current_loc;
-	ahead_next_WP_loc.offset_bearing(degrees(bearing), ahead_dist);
+	    ahead_next_WP_loc.offset_bearing(degrees(bearing), ahead_dist);
         auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, ahead_next_WP_loc);
     }
     TECS_controller.set_path_proportion(auto_state.wp_proportion);

@@ -558,11 +558,15 @@ private:
         // are we circle tracking mode for this turning point? 
         bool tp_circle_mode;
 
-        //
+        // 以下，DO_LAND_START 以降の着陸シーケンス関連変数
+        // 着陸経路総距離
         float rtl_land_seq_total_distance;
-
-        float rtl_land_seq_initial_hgt;
         
+        // 着陸シーケンス開始以降のフライト距離
+        float rtl_land_seq_sum_distance;
+
+        // 着陸シーケンス開始時の高度
+        float rtl_land_seq_initial_hgt;
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED

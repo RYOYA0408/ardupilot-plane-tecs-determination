@@ -2544,6 +2544,9 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             glide_slope_deg = degrees(atanf((curr_alt/100.0)/total_dist));
         }
     }
+    plane.auto_state.rtl_land_seq_sum_distance = 0;
+    plane.auto_state.rtl_land_seq_total_distance = total_dist;
+    plane.auto_state.rtl_land_seq_initial_hgt = curr_alt/100.0;
 }
 
 /*

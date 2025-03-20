@@ -561,12 +561,18 @@ private:
         // 以下，DO_LAND_START 以降の着陸シーケンス関連変数
         // 着陸経路総距離
         float rtl_land_seq_total_distance;
+
+        // DO_LAND_START 以降通過した最後のWPでのフライト距離積算値
+        float rtl_land_seq_lastwp_distance;
         
         // 着陸シーケンス開始以降のフライト距離
         float rtl_land_seq_sum_distance;
 
-        // 着陸シーケンス開始時の高度
-        float rtl_land_seq_initial_hgt;
+        // 着陸シーケンス開始地点
+        Location rtl_land_seq_initial_loc;
+
+        // 着陸シーケンスの最終着陸地点
+        Location rtl_land_seq_landing_loc;
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED

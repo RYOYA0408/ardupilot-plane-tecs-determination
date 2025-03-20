@@ -644,6 +644,13 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
     }
 
     if (auto_state.crosstrack) {
+        if (auto_state.checked_for_autoland) {
+            const float A = auto_state.rtl_land_seq_total_distance;
+            const float B = auto_state.rtl_land_seq_lastwp_distance + prev_WP_loc.get_distance(flex_next_WP_loc);
+            const float H = auto_state.rtl_land_seq_initial_loc.alt/100;    // cm -> m
+            const float h = (A-B)/MAX(A, 1)*H;
+            flex_next_WP_loc.set_alt_cm(h*100, flex_next_WP_loc.get_alt_frame());
+        }
         nav_controller->update_waypoint(prev_WP_loc, flex_next_WP_loc);
     } else {
         nav_controller->update_waypoint(current_loc, flex_next_WP_loc);
@@ -674,6 +681,9 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
         gcs().send_text(MAV_SEVERITY_INFO, "Reached waypoint #%i dist %um",
                           (unsigned)mission.get_current_nav_cmd().index,
                           (unsigned)current_loc.get_distance(flex_next_WP_loc));
+        if (auto_state.checked_for_autoland) {
+            auto_state.rtl_land_seq_lastwp_distance += prev_WP_loc.get_distance(flex_next_WP_loc);
+        }
         flex_prev_WP_loc = current_loc;
         return true;
 	}
@@ -683,6 +693,9 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
         gcs().send_text(MAV_SEVERITY_INFO, "Passed waypoint #%i dist %um",
                           (unsigned)mission.get_current_nav_cmd().index,
                           (unsigned)current_loc.get_distance(flex_next_WP_loc));
+        if (auto_state.checked_for_autoland) {
+            auto_state.rtl_land_seq_lastwp_distance += prev_WP_loc.get_distance(flex_next_WP_loc);
+        }
         flex_prev_WP_loc = current_loc;
         return true;
     }
@@ -765,7 +778,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     } else {
         auto_state.tp_circle_mode = false;
         loiter.start_point = flex_next_WP_loc;
-        // 目標位置を現在位置から turning circle へ引いた接線の接点に設定hmjmmm
+        // 目標位置を現在位置から turning circle へ引いた接線の接点に設定
         Vector2f air_B = current_loc.get_distance_NE(flex_next_WP_loc);
         float air_B_Length = air_B.length();
         float theta = next_WP_direction * asinf(next_WP_radius/MAX(air_B_Length, 0.1));
@@ -780,12 +793,22 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     // 目標点への近接判定
     // Turning point 円周上を飛行中でない
     if (!auto_state.tp_circle_mode) {
+        if (auto_state.checked_for_autoland) {
+            const float A = auto_state.rtl_land_seq_total_distance;
+            const float B = auto_state.rtl_land_seq_lastwp_distance + prev_WP_loc.get_distance(flex_next_WP_loc);
+            const float H = auto_state.rtl_land_seq_initial_loc.alt/100;    // cm -> m
+            const float h = (A-B)/MAX(A, 1)*H;
+            flex_next_WP_loc.set_alt_cm(h*100, flex_next_WP_loc.get_alt_frame());
+        }
         float acceptance_distance_m = 0.5*L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_next_WP_loc);
         if (tp_dist <= acceptance_distance_m) {
             gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point #%i dist %um",
                             (unsigned)mission.get_current_nav_cmd().index,
                             (unsigned)current_loc.get_distance(flex_next_WP_loc));
+            if (auto_state.checked_for_autoland) {
+                auto_state.rtl_land_seq_lastwp_distance += prev_WP_loc.get_distance(flex_next_WP_loc);
+            }
             auto_state.tp_circle_mode = true;
             loiter.start_point = flex_next_WP_loc;
             return true;
@@ -796,26 +819,42 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             gcs().send_text(MAV_SEVERITY_INFO, "Passed turning point #%i dist %um",
                             (unsigned)mission.get_current_nav_cmd().index,
                             (unsigned)current_loc.get_distance(flex_next_WP_loc));
+            if (auto_state.checked_for_autoland) {
+                auto_state.rtl_land_seq_lastwp_distance += prev_WP_loc.get_distance(flex_next_WP_loc);
+            }
             auto_state.tp_circle_mode = true;
             loiter.start_point = flex_next_WP_loc;
             return true;
         }
     // Turning point 円周上を飛行中
     } else {
+        const float turns = cmd.get_loiter_turns();
+        const float radius = cmd.get_loiter_radius();
         // 周回円上を旋回すべき角度
-        float loiter_deg = prev_WP_loc.pt3_angle_deg(
+        loiter.total_cd = prev_WP_loc.pt3_angle_deg(
             loiter.start_point,
             flex_prev_WP_loc,
             prev_WP_direction
-        );
-        bool c1 = fabs(loiter.sum_cd / 100.0) > loiter_deg * 3.0/4.0;         // 旋回角度が旋回すべき角度の 3/4 を超えたかどうか
+        ) * 100;
+        loiter.total_cd += (uint32_t)(turns * 36000UL);
+        if (auto_state.checked_for_autoland) {
+            const float A = auto_state.rtl_land_seq_total_distance;
+            const float B = auto_state.rtl_land_seq_lastwp_distance + 2.0*radius*loiter.total_cd/18000.0*M_PI;
+            const float H = auto_state.rtl_land_seq_initial_loc.alt/100;    // cm -> m
+            const float h = (A-B)/MAX(A, 1)*H;
+            flex_prev_WP_loc.set_alt_cm(h*100, flex_prev_WP_loc.get_alt_frame());
+        }
+        bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 90.0;         // 旋回角度が旋回すべき角度-90度を超えたかどうか
         float acceptance_distance_m = L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_prev_WP_loc);
-	printf("sum_cd = %d, loiter_deg = %f, c1=%d\n", loiter.sum_cd, loiter_deg, c1); 
+	    printf("sum_cd = %d, loiter.total_cd = %d, c1=%d\n", loiter.sum_cd, loiter.total_cd, c1); 
         if (tp_dist <= acceptance_distance_m && c1) {       // 目標点への近接判定
             gcs().send_text(MAV_SEVERITY_INFO, "Reached turning point end #%i dist %um",
                             (unsigned)mission.get_current_nav_cmd().index - 1,
                             (unsigned)current_loc.get_distance(flex_prev_WP_loc));
+            if (auto_state.checked_for_autoland) {
+                auto_state.rtl_land_seq_lastwp_distance += 2.0*radius*loiter.total_cd/18000.0*M_PI;
+            }
             auto_state.tp_circle_mode = false;
             prev_WP_loc = flex_prev_WP_loc;
         }

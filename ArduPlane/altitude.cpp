@@ -56,17 +56,25 @@ void Plane::setup_glide_slope(void)
 {
     // establish the distance we are travelling to the next waypoint,
     // for calculating out rate of change of altitude
-    auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
-    auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
+    if (auto_state.tp_circle_mode) {
+        auto_state.wp_proportion = auto_state.sum_cd / MAX(auto_state.total.cd, auto_state.sum_cd);
+    } else {
+        auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
+        auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
+    }
     if (auto_state.tp_crosstrack) {
-        auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
-        // proportion を計算する際の next waypoint の位置を実際よりも L1 の腕の長さ分手前にする。
-        // こうすることで TECS.hin の不連続な変化を避けられる。
-        float bearing = current_loc.get_bearing(flex_next_WP_loc);
-        float ahead_dist = auto_state.wp_distance - L1_controller.get_L1_dist();
-        Location ahead_next_WP_loc = current_loc;
-	ahead_next_WP_loc.offset_bearing(degrees(bearing), ahead_dist);
-        auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, ahead_next_WP_loc);
+        if (auto_state.tp_circle_mode) {
+            auto_state.wp_proportion = auto_state.sum_cd / MAX(auto_state.total.cd, auto_state.sum_cd);
+        } else {
+            auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
+            // proportion を計算する際の next waypoint の位置を実際よりも L1 の腕の長さ分手前にする。
+            // こうすることで TECS.hin の不連続な変化を避けられる。
+            float bearing = current_loc.get_bearing(flex_next_WP_loc);
+            float ahead_dist = auto_state.wp_distance - L1_controller.get_L1_dist();
+            Location ahead_next_WP_loc = current_loc;
+            ahead_next_WP_loc.offset_bearing(degrees(bearing), ahead_dist);
+            auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, ahead_next_WP_loc);
+        }
     }
     TECS_controller.set_path_proportion(auto_state.wp_proportion);
     update_flight_stage();
@@ -77,6 +85,10 @@ void Plane::setup_glide_slope(void)
      */
     switch (control_mode->mode_number()) {
     case Mode::Number::RTL:
+        if (auto_state.checked_for_autoland) {
+            set_offset_altitude_location(auto_state.rtl_land_seq_initial_loc, auto_state.rtl_land_seq_landing_loc);
+        }
+        break;
     case Mode::Number::AVOID_ADSB:
     case Mode::Number::GUIDED:
         /* glide down slowly if above target altitude, but ascend more

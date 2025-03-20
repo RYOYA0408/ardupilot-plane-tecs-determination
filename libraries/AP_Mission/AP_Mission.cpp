@@ -2453,6 +2453,8 @@ bool AP_Mission::jump_to_landing_sequence(const Location &current_loc)
  */
 void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc)
 {
+    plane.auto_state.rtl_land_seq_initial_loc = current_loc;
+    plane.auto_state.rtl_land_seq_lastwp_distance = 0;
     Location A = current_loc;       // 現在位置
     Location B;                     // 次の WP または TP
     Location C;                     // A から TurnPoint B へ引いた接線の接点
@@ -2460,7 +2462,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
     Location E;                     // D を決めるための次の WP または TP
     Location F;                     // E が TP だった場合の E上の接点
     Location last_tp;               // 経路上の最後の TurnPoint
-    float last_tp_radius = 0;           // 経路上の最後の TurnPoint の半径
+    float last_tp_radius = 0;       // 経路上の最後の TurnPoint の半径
+    Mission_Command last_tp_cmd;    // 経路上の最後の TurnPoint を指定するコマンド
     float total_dist = 0;
     const auto count = num_commands();
     // DO_LAND_START 以降のミッションコマンドを読み込む
@@ -2472,11 +2475,14 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
         }
         // ミッションコマンドは NAV_WAYPOINT か
         if(cmd.id == MAV_CMD_NAV_WAYPOINT || cmd.id == MAV_CMD_NAV_LAND){
-	    B = cmd.content.location;
+	        B = cmd.content.location;
             // ウェイポイントの座標は正常か
             if(!B.initialised()){
                 // command does not have a valid location and cannot get next valid
                 continue;
+            }
+            if (cmd.id == MAV_CMD_NAV_LAND) {
+                plane.auto_state.rtl_land_seq_landing_loc = B;
             }
             // 通常のウェイポイントの場合，現在地点からの距離を積算する
             if(B.loiter_ccw == 0){
@@ -2486,7 +2492,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             // ターンポイントの場合，現在地点からターンポイント接点までの距離を積算する
             else{
                 last_tp = B;
-                last_tp_radius = tp_radius(cmd);
+                last_tp_radius = cmd.get_loiter_radius();
+                last_tp_cmd = cmd;
                 total_dist += get_dist_wp2tp(A, B, C, cmd);
                 // 更にターンポイントを離れる点を求め，旋回円弧の長さを積算する。
                 // 次のミッションを調べる
@@ -2511,8 +2518,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                             B.common_tangent_point(
                                 B,                      // 円1 の中心
                                 E,                      // 円2 の中心
-                                tp_radius(cmd),         // 円1 の半径
-                                tp_radius(cmd2),        // 円2 の半径
+                                cmd.get_loiter_radius(),         // 円1 の半径
+                                cmd2.get_loiter_radius(),        // 円2 の半径
                                 tp_dir(B),              // 円1 の回転方向 -1=cw, 1=ccw
                                 tp_dir(E),              // 円2 の回転方向 -1=cw, 1=ccw
                                 D,                      // 円1 の共通接点
@@ -2520,7 +2527,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                             ) ;
                         }
                         float deg = B.pt3_angle_deg(C, D, tp_dir(B));   // 旋回角
-                        total_dist += tp_radius(cmd)*deg/180*M_PI;  // 旋回経路長さ
+                        total_dist += cmd.get_loiter_radius()*deg/180*M_PI;  // 旋回経路長さ
                         A = D;
                     }
                 }
@@ -2543,20 +2550,11 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             total_dist = MAX(total_dist, 1.0);
             glide_slope_deg = degrees(atanf((curr_alt/100.0)/total_dist));
         }
+        last_tp_cmd.set_loiter_turns(additional_turn_number);
+        replace_cmd(last_tp_cmd.index, last_tp_cmd);
     }
     plane.auto_state.rtl_land_seq_sum_distance = 0;
     plane.auto_state.rtl_land_seq_total_distance = total_dist;
-    plane.auto_state.rtl_land_seq_initial_hgt = curr_alt/100.0;
-}
-
-/*
-  TurnPoint の半径を返す
-*/
-float AP_Mission::tp_radius(Mission_Command cmd)
-{
-    float radius = HIGHBYTE(cmd.p1);
-    if(radius < 1) radius = 70;
-    return radius;
 }
 
 /*

@@ -435,6 +435,19 @@ public:
             }
             return turns;
         }
+        void set_loiter_turns(float turns) {
+            if (turns > 0 && turns < 1) {
+                turns *= 256.0;
+                type_specific_bits |= (1U << 1);
+            }
+            uint8_t t = MIN(255, turns);
+            p1 |= t;    
+        }
+        float get_loiter_radius(void) const {
+            float radius = HIGHBYTE(p1);
+            if(radius < 1) radius = 70.0;
+            return radius;
+        }
     };
 
 

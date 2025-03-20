@@ -56,14 +56,14 @@ void Plane::setup_glide_slope(void)
 {
     // establish the distance we are travelling to the next waypoint,
     // for calculating out rate of change of altitude
-    if (auto_state.tp_circle_mode) {
+    if (auto_state.tp_circle_mode && loiter.total_cd != 0) {
         auto_state.wp_proportion = loiter.sum_cd / MAX(loiter.total_cd, loiter.sum_cd);
     } else {
         auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
         auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
     }
     if (auto_state.tp_crosstrack) {
-        if (auto_state.tp_circle_mode) {
+        if (auto_state.tp_circle_mode && loiter.total_cd != 0) {
             auto_state.wp_proportion = loiter.sum_cd / MAX(loiter.total_cd, loiter.sum_cd);
         } else {
             auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);

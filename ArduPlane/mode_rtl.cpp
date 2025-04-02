@@ -100,29 +100,27 @@ void ModeRTL::navigate()
     if (radius > 0) {
         plane.loiter.direction = (plane.g.rtl_radius < 0) ? -1 : 1;
     }
-    plane.auto_state.tp_circle_mode = false;
+    plane.auto_state.tp_circle_mode = 0;
     plane.update_loiter(radius);
 
     if (!plane.auto_state.checked_for_autoland) {
         if ((plane.g.rtl_autoland == RtlAutoland::RTL_IMMEDIATE_DO_LAND_START) ||
             (plane.g.rtl_autoland == RtlAutoland::RTL_THEN_DO_LAND_START &&
             plane.reached_loiter_target() && 
-            labs(plane.calc_altitude_error_cm()) < 1000))
-            {
-                // we've reached the RTL point, see if we have a landing sequence
-                if (plane.have_position && plane.mission.jump_to_landing_sequence(plane.current_loc)) {
-                    // switch from RTL -> AUTO
-                    plane.mission.set_force_resume(true);
-                    if (plane.set_mode(plane.mode_auto, ModeReason::RTL_COMPLETE_SWITCHING_TO_FIXEDWING_AUTOLAND)) {
-                        // return here so we don't change the radius and don't run the rtl update_loiter()
-                        return;
-                    }
-                }
-
-                // prevent running the expensive jump_to_landing_sequence
-                // on every loop
-                plane.auto_state.checked_for_autoland = true;
+            labs(plane.calc_altitude_error_cm()) < 1000)) {
+            // we've reached the RTL point, see if we have a landing sequence
+            if (plane.have_position && plane.mission.jump_to_landing_sequence(plane.current_loc)) {
+                // switch from RTL -> AUTO
+                plane.mission.set_force_resume(true);
+                plane.set_mode(plane.mode_auto, ModeReason::RTL_COMPLETE_SWITCHING_TO_FIXEDWING_AUTOLAND);
             }
+
+            // prevent running the expensive jump_to_landing_sequence
+            // on every loop
+            plane.set_target_altitude_current();
+            printf("target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
+            plane.auto_state.checked_for_autoland = true;
+        }
     }
 }
 

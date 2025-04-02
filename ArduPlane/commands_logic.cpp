@@ -776,7 +776,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
         }
     // Turning point 周回経路に乗っていない
     } else {
-        auto_state.tp_circle_mode = false;
+        auto_state.tp_circle_mode = 0;
         loiter.start_point = flex_next_WP_loc;
         // 目標位置を現在位置から turning circle へ引いた接線の接点に設定
         Vector2f air_B = current_loc.get_distance_NE(flex_next_WP_loc);
@@ -794,12 +794,19 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
     // Turning point 円周上を飛行中でない
     if (!auto_state.tp_circle_mode) {
         if (auto_state.checked_for_autoland) {
+            Location P;
+            if (fabs(auto_state.rtl_land_seq_lastwp_distance) <= 1e-3) {
+                P = auto_state.rtl_land_seq_initial_loc;
+            } else {
+                P = prev_WP_loc;
+            }
             const float A = auto_state.rtl_land_seq_total_distance;
-            const float B = auto_state.rtl_land_seq_lastwp_distance + prev_WP_loc.get_distance(flex_next_WP_loc);
+            const float B = auto_state.rtl_land_seq_lastwp_distance + P.get_distance(flex_next_WP_loc);
             const float H = auto_state.rtl_land_seq_initial_loc.alt/100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
             flex_next_WP_loc.set_alt_cm(h*100, flex_next_WP_loc.get_alt_frame());
-        }
+            set_offset_altitude_location(P, flex_next_WP_loc);
+         }
         float acceptance_distance_m = 0.5*L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_next_WP_loc);
         if (tp_dist <= acceptance_distance_m) {
@@ -809,7 +816,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             if (auto_state.checked_for_autoland) {
                 auto_state.rtl_land_seq_lastwp_distance += prev_WP_loc.get_distance(flex_next_WP_loc);
             }
-            auto_state.tp_circle_mode = true;
+            auto_state.tp_circle_mode = cmd.get_loiter_turns() + 1;
             loiter.start_point = flex_next_WP_loc;
             return true;
         }
@@ -822,13 +829,13 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             if (auto_state.checked_for_autoland) {
                 auto_state.rtl_land_seq_lastwp_distance += prev_WP_loc.get_distance(flex_next_WP_loc);
             }
-            auto_state.tp_circle_mode = true;
+            auto_state.tp_circle_mode = cmd.get_loiter_turns() + 1;
             loiter.start_point = flex_next_WP_loc;
             return true;
         }
     // Turning point 円周上を飛行中
     } else {
-        const float turns = cmd.get_loiter_turns();
+        const int turns = MAX(0, auto_state.tp_circle_mode - 1);
         const float radius = cmd.get_loiter_radius();
         // 周回円上を旋回すべき角度
         loiter.total_cd = prev_WP_loc.pt3_angle_deg(
@@ -855,7 +862,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             if (auto_state.checked_for_autoland) {
                 auto_state.rtl_land_seq_lastwp_distance += 2.0*radius*loiter.total_cd/18000.0*M_PI;
             }
-            auto_state.tp_circle_mode = false;
+            auto_state.tp_circle_mode = 0;
             prev_WP_loc = flex_prev_WP_loc;
         }
         

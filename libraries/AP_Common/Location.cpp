@@ -565,9 +565,12 @@ void Location::common_tangent_point(
     )
 {
     ftype dx, dy, dr, offset_x, offset_y;
-    Vector2f dist_ne = get_distance_NE(c2);
     ctp1 = c1;
     ctp2 = c2;
+    if(get_distance(c2) <= r1+r2){
+        return;
+    }
+    Vector2f dist_ne = get_distance_NE(c2);
     dx = dist_ne.x;
     dy = dist_ne.y;
     

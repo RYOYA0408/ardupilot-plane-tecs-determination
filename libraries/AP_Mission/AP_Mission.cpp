@@ -2514,6 +2514,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                         }
                         // ターンポイントなら共通接線を求める
                         else{
+                            last_tp = E;
+                            last_tp_cmd = cmd2;
                             // 次の周回円周との共通接点を求める
                             B.common_tangent_point(
                                 B,                      // 円1 の中心
@@ -2591,6 +2593,9 @@ float AP_Mission::get_dist_wp2tp(Location WP, Location TP, Location &tangentPoin
     // 目標位置を前回位置から turning circle へ引いた接線の接点に設定
     Vector2f wp2tp = WP.get_distance_NE(TP);
     float wp2tp_len = wp2tp.length();
+    if(wp2tp_len < 1e-3){
+        return 0.0;
+    }
     float theta = dir * asinf(radius/MAX(wp2tp_len, 0.1));
     theta += dir * 1.5707963f;    // 1.5707963 = pi/2
     Vector2f v_tmp = wp2tp;

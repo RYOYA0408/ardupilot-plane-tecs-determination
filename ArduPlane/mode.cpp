@@ -206,6 +206,8 @@ void Mode::update_target_altitude()
 
         // stay within the range of the start and end locations in altitude
         plane.constrain_target_altitude_location(plane.next_WP_loc, plane.prev_WP_loc);
+    } else if (plane.auto_state.checked_for_autoland) {
+        // nothing to do
     } else {
         plane.set_target_altitude_location(plane.next_WP_loc);
     }

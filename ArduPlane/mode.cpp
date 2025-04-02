@@ -191,6 +191,8 @@ void Mode::update_target_altitude()
         // once we reach a loiter target then lock to the final
         // altitude target
         plane.set_target_altitude_location(plane.next_WP_loc);
+    } else if (plane.auto_state.tp_circle_mode && plane.loiter.total_cd != 0) {
+        plane.set_target_altitude_proportion(plane.flex_prev_WP_loc, 1.0f-plane.auto_state.wp_proportion);
     } else if (plane.auto_state.tp_crosstrack &&
                plane.target_altitude.offset_cm != 0 && 
                !plane.current_loc.past_interval_finish_line(plane.flex_prev_WP_loc, plane.flex_next_WP_loc)) {

@@ -557,7 +557,7 @@ private:
         int32_t last_home_alt_cm;
 
         // are we circle tracking mode for this turning point? 
-        bool tp_circle_mode;
+        int32_t tp_circle_mode;
 
         // 以下，DO_LAND_START 以降の着陸シーケンス関連変数
         // 着陸経路総距離

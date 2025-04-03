@@ -855,7 +855,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             flex_prev_WP_loc.set_alt_cm(h*100, Location::AltFrame::ABOVE_HOME);
             set_offset_altitude_location(loiter.start_point, flex_prev_WP_loc);
         }
-        bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 90.0;         // 旋回角度が旋回すべき角度-90度を超えたかどうか
+        bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 5.0;         // 旋回角度が旋回すべき角度-5度を超えたかどうか
         float acceptance_distance_m = L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_prev_WP_loc);
 	    printf("sum_cd = %d, loiter.total_cd = %d, c1=%d\n", loiter.sum_cd, loiter.total_cd, c1); 

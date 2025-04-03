@@ -56,15 +56,13 @@ void Plane::setup_glide_slope(void)
 {
     // establish the distance we are travelling to the next waypoint,
     // for calculating out rate of change of altitude
-    if (auto_state.tp_circle_mode && loiter.total_cd != 0) {
-        auto_state.wp_proportion = loiter.sum_cd / MAX(loiter.total_cd, loiter.sum_cd);
-    } else {
-        auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
-        auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
-    }
-    if (auto_state.tp_crosstrack) {
+    if (auto_state.checked_for_autoland && reached_loiter_target()) {
+        float sum_cd = fabs((float)loiter.sum_cd);
+        auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
+    } else if (auto_state.tp_crosstrack) {
         if (auto_state.tp_circle_mode && loiter.total_cd != 0) {
-            auto_state.wp_proportion = loiter.sum_cd / MAX(loiter.total_cd, loiter.sum_cd);
+            float sum_cd = fabs((float)loiter.sum_cd);
+            auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
         } else {
             auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
             // proportion を計算する際の next waypoint の位置を実際よりも L1 の腕の長さ分手前にする。
@@ -75,8 +73,11 @@ void Plane::setup_glide_slope(void)
             ahead_next_WP_loc.offset_bearing(degrees(bearing), ahead_dist);
             auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, ahead_next_WP_loc);
         }
+    } else {
+        auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
+        auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
     }
-    TECS_controller.set_path_proportion(auto_state.wp_proportion);
+     TECS_controller.set_path_proportion(auto_state.wp_proportion);
     update_flight_stage();
 
     /*

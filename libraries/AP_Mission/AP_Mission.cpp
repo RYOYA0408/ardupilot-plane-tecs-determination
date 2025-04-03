@@ -2461,8 +2461,10 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
     Location D;                     // TurnPoint B を離れる点
     Location E;                     // D を決めるための次の WP または TP
     Location F;                     // E が TP だった場合の E上の接点
+    Location last_wp;               // 着陸地点前の WayPoint（着陸点前に必ず１つWPを置く必要がある）
     Location last_tp;               // 経路上の最後の TurnPoint
     float last_tp_radius = 0;       // 経路上の最後の TurnPoint の半径
+    Mission_Command last_wp_cmd;    // 着陸地点前野 WapyPoint を指定するコマンド
     Mission_Command last_tp_cmd;    // 経路上の最後の TurnPoint を指定するコマンド
     float total_dist = 0;
     const auto count = num_commands();
@@ -2507,6 +2509,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                         }
                         // 通常のウェイポイントなら，接線を求める
                         if(E.loiter_ccw ==0){
+                            last_wp = E;
+                            last_wp_cmd = cmd2;
                             // TurnPointの旋回方向を逆にする必要がある
                             if(B.loiter_xtrack ==1) B.loiter_xtrack = 0;
                             else B.loiter_xtrack = 1;
@@ -2555,6 +2559,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
         last_tp_cmd.set_loiter_turns(additional_turn_number);
         replace_cmd(last_tp_cmd.index, last_tp_cmd);
     }
+    last_wp_cmd.content.location.set_alt_cm()
     plane.auto_state.rtl_land_seq_sum_distance = 0;
     plane.auto_state.rtl_land_seq_total_distance = total_dist;
 }

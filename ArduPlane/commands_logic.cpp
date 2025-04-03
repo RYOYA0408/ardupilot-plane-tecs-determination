@@ -850,7 +850,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
             float h = (A-B)/MAX(A, 1)*H;
             if (h < auto_state.rtl_land_seq_last_wp.alt/100.0) {
-                h = auto_state.rtl_land_seq_last_wp.alt/100.0
+                h = auto_state.rtl_land_seq_last_wp.alt/100.0;
             }
             flex_prev_WP_loc.set_alt_cm(h*100, flex_prev_WP_loc.get_alt_frame());
             set_offset_altitude_location(loiter.start_point, flex_prev_WP_loc);

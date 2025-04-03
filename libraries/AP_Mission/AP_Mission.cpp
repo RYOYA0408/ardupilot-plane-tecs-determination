@@ -2476,15 +2476,12 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             continue;
         }
         // ミッションコマンドは NAV_WAYPOINT か
-        if(cmd.id == MAV_CMD_NAV_WAYPOINT || cmd.id == MAV_CMD_NAV_LAND){
+        if(cmd.id == MAV_CMD_NAV_WAYPOINT){
 	        B = cmd.content.location;
             // ウェイポイントの座標は正常か
             if(!B.initialised()){
                 // command does not have a valid location and cannot get next valid
                 continue;
-            }
-            if (cmd.id == MAV_CMD_NAV_LAND) {
-                plane.auto_state.rtl_land_seq_landing_loc = B;
             }
             // 通常のウェイポイントの場合，現在地点からの距離を積算する
             if(B.loiter_ccw == 0){
@@ -2546,7 +2543,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
         curr_alt = current_loc.alt;
     }
     total_dist = MAX(total_dist, 1.0);
-    float glide_slope_deg = degrees(atanf((curr_alt/100.0)/total_dist));
+    float glide_slope_deg = degrees(atanf((curr_alt - last_wp.alt) / 100.0 / total_dist));
     int additional_turn_number = 0;
     // グライドスロープが 3deg を上回る場合，TurnPoint の周回数を増やす
     if(last_tp.initialised() && fabs(last_tp_radius)>10.0){
@@ -2554,12 +2551,12 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             additional_turn_number ++;
             total_dist += 2.0*M_PI*last_tp_radius;
             total_dist = MAX(total_dist, 1.0);
-            glide_slope_deg = degrees(atanf((curr_alt/100.0)/total_dist));
+            glide_slope_deg = degrees(atanf(((curr_alt - last_wp.alt) / 100.0) / total_dist));
         }
         last_tp_cmd.set_loiter_turns(additional_turn_number);
         replace_cmd(last_tp_cmd.index, last_tp_cmd);
     }
-    last_wp_cmd.content.location.set_alt_cm()
+    plane.auto_state.rtl_land_seq_last_wp = last_wp_cmd.content.location;
     plane.auto_state.rtl_land_seq_sum_distance = 0;
     plane.auto_state.rtl_land_seq_total_distance = total_dist;
 }

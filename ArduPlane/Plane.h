@@ -572,8 +572,8 @@ private:
         // 着陸シーケンス開始地点
         Location rtl_land_seq_initial_loc;
 
-        // 着陸シーケンスの最終着陸地点
-        Location rtl_land_seq_landing_loc;
+        // 着陸地点直前の WayPoint
+        Location rtl_land_seq_last_wp;
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED

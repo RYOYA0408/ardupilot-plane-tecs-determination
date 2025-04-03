@@ -86,9 +86,6 @@ void Plane::setup_glide_slope(void)
      */
     switch (control_mode->mode_number()) {
     case Mode::Number::RTL:
-        if (auto_state.checked_for_autoland) {
-//            set_offset_altitude_location(auto_state.rtl_land_seq_initial_loc, auto_state.rtl_land_seq_landing_loc);
-        }
         break;
     case Mode::Number::AVOID_ADSB:
     case Mode::Number::GUIDED:

@@ -649,7 +649,7 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
             const float B = auto_state.rtl_land_seq_lastwp_distance + prev_WP_loc.get_distance(flex_next_WP_loc);
             const float H = auto_state.rtl_land_seq_initial_loc.alt/100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
-            flex_next_WP_loc.set_alt_cm(h*100, AltFrame::ABOVE_HOME);
+            flex_next_WP_loc.set_alt_cm(h*100, Location::AltFrame::ABOVE_HOME);
         }
         nav_controller->update_waypoint(prev_WP_loc, flex_next_WP_loc);
     } else {
@@ -804,7 +804,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float B = auto_state.rtl_land_seq_lastwp_distance + P.get_distance(flex_next_WP_loc);
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
-            flex_next_WP_loc.set_alt_cm(h*100, AltFrame::ABOVE_HOME);
+            flex_next_WP_loc.set_alt_cm(h*100, Location::AltFrame::ABOVE_HOME);
             set_offset_altitude_location(P, flex_next_WP_loc);
          }
         float acceptance_distance_m = 0.5*L1_controller.get_L1_dist();
@@ -852,7 +852,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             if (h < auto_state.rtl_land_seq_last_wp.alt/100.0) {
                 h = auto_state.rtl_land_seq_last_wp.alt/100.0;
             }
-            flex_prev_WP_loc.set_alt_cm(h*100, AltFrame::ABOVE_HOME);
+            flex_prev_WP_loc.set_alt_cm(h*100, Location::AltFrame::ABOVE_HOME);
             set_offset_altitude_location(loiter.start_point, flex_prev_WP_loc);
         }
         bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 90.0;         // 旋回角度が旋回すべき角度-90度を超えたかどうか

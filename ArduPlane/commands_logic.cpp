@@ -848,7 +848,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float A = auto_state.rtl_land_seq_total_distance;
             const float B = auto_state.rtl_land_seq_lastwp_distance + 2.0*radius*loiter.total_cd/36000.0*M_PI;
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
-            const float h = (A-B)/MAX(A, 1)*H;
+            float h = (A-B)/MAX(A, 1)*H;
             if (h < auto_state.rtl_land_seq_last_wp.alt/100.0) {
                 h = auto_state.rtl_land_seq_last_wp.alt/100.0
             }

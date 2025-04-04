@@ -65,13 +65,7 @@ void Plane::setup_glide_slope(void)
             auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
         } else {
             auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
-            // proportion を計算する際の next waypoint の位置を実際よりも L1 の腕の長さ分手前にする。
-            // こうすることで TECS.hin の不連続な変化を避けられる。
-            float bearing = current_loc.get_bearing(flex_next_WP_loc);
-            float ahead_dist = auto_state.wp_distance - L1_controller.get_L1_dist();
-            Location ahead_next_WP_loc = current_loc;
-            ahead_next_WP_loc.offset_bearing(degrees(bearing), ahead_dist);
-            auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, ahead_next_WP_loc);
+            auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, flex_next_WP_loc);
         }
     } else {
         auto_state.wp_distance = current_loc.get_distance(next_WP_loc);

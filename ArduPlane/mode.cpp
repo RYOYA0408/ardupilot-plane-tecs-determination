@@ -200,9 +200,6 @@ void Mode::update_target_altitude()
                !plane.current_loc.past_interval_finish_line(plane.flex_prev_WP_loc, plane.flex_next_WP_loc)) {
         // control climb/descent rate
         plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0f-plane.auto_state.wp_proportion);
-
-        // stay within the range of the start and end locations in altitude
-        plane.constrain_target_altitude_location(plane.flex_next_WP_loc, plane.flex_prev_WP_loc);
     } else if (plane.target_altitude.offset_cm != 0 && 
                !plane.current_loc.past_interval_finish_line(plane.prev_WP_loc, plane.next_WP_loc)) {
         // control climb/descent rate

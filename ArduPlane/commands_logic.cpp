@@ -853,7 +853,6 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             if (flex_prev_WP_loc.alt < auto_state.rtl_land_seq_last_wp.alt) {
                 flex_prev_WP_loc.alt = auto_state.rtl_land_seq_last_wp.alt;
             }
-            flex_prev_WP_loc.set_alt_cm(h*100, Location::AltFrame::ABOVE_HOME);
             set_offset_altitude_location(loiter.start_point, flex_prev_WP_loc);
         }
         bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 5.0;         // 旋回角度が旋回すべき角度-5度を超えたかどうか

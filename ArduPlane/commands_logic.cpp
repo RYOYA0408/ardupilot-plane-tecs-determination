@@ -645,11 +645,12 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
 
     if (auto_state.crosstrack) {
         if (auto_state.checked_for_autoland) {
-            const float A = auto_state.rtl_land_seq_total_distance;
-            const float B = auto_state.rtl_land_seq_lastwp_distance + prev_WP_loc.get_distance(flex_next_WP_loc);
-            const float H = auto_state.rtl_land_seq_initial_loc.alt/100;    // cm -> m
+            const float A = prev_WP_loc.get_distance(auto_state.rtl_landing_point);
+            const float B = prev_WP_loc.get_distance(flex_next_WP_loc);
+            const float H = prev_WP_loc.alt/100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
             flex_next_WP_loc.alt = h*100;
+            set_offset_altitude_location(prev_WP_loc, flex_next_WP_loc);
         }
         nav_controller->update_waypoint(prev_WP_loc, flex_next_WP_loc);
     } else {

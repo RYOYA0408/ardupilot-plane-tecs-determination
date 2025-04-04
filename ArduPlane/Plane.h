@@ -574,6 +574,9 @@ private:
 
         // 着陸地点直前の WayPoint
         Location rtl_land_seq_last_wp;
+
+        // 着陸地点
+        Location rtl_landing_point;
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED

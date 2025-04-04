@@ -2535,6 +2535,16 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                     }
                 }
             }
+        // ミッションコマンドは NAV_LAND か
+        } else if (cmd.id == MAV_CMD_NAV_LAND) {
+            B = cmd.content.location;
+            // ウェイポイントの座標は正常か
+            if(!B.initialised()){
+                // command does not have a valid location and cannot get next valid
+                continue;
+            }
+            plane.auto_state.rtl_landing_point = B;
+            plane.auto_state_rtl_landing_point.alt = plane.home.alt;
         }
     }
     // total_dist と現在の高度からグライドスロープを求める

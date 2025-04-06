@@ -195,7 +195,7 @@ void Mode::update_target_altitude()
             // altitude target
             plane.set_target_altitude_location(plane.next_WP_loc);
         }
-    } else if (plane.auto_state.crosstrack && auto_state.checked_for_autoland) {
+    } else if (plane.auto_state.crosstrack && plane.auto_state.checked_for_autoland) {
         plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0-plane.auto_state.wp_proportion);
     } else if (plane.auto_state.tp_crosstrack &&
                plane.target_altitude.offset_cm != 0 && 

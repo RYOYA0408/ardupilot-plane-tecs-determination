@@ -99,20 +99,35 @@ void Plane::navigate()
 
     // waypoint distance from plane
     // ----------------------------
+    float wp_proportion_prev = auto_state.wp_proportion;
+
     if (auto_state.checked_for_autoland && reached_loiter_target()) {
         float sum_cd = fabs((float)loiter.sum_cd);
         auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
+	printf("navigation.cpp_001: wp_proportion = %f\n", auto_state.wp_proportion);
     } else if (auto_state.tp_crosstrack) {
         if (auto_state.tp_circle_mode && loiter.total_cd != 0) {
             float sum_cd = fabs((float)loiter.sum_cd);
             auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
+	printf("navigation.cpp_002: wp_proportion = %f\n", auto_state.wp_proportion);
         } else {
             auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
             auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, flex_next_WP_loc);
+	printf("navigation.cpp_003: wp_proportion = %f\n", auto_state.wp_proportion);
         }
+    } else if (auto_state.crosstrack && auto_state.checked_for_autoland) {
+	auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
+	auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, flex_next_WP_loc);
+	printf("navigation.cpp_004: wp_proportion = %f\n", auto_state.wp_proportion);
     } else {
         auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
         auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
+	printf("navigation.cpp_005: wp_proportion = %f\n", auto_state.wp_proportion);
+    }
+    if (fabs(wp_proportion_prev) < 1e-6 && auto_state.wp_proportion < 0.) {
+        auto_state.wp_proportion_offset = -auto_state.wp_proportion;
+    } else if (wp_proportion_prev <= 0. && auto_state.wp_proportion >= 0.) {
+        auto_state.wp_proportion_offset = 0.;
     }
     TECS_controller.set_path_proportion(auto_state.wp_proportion);
 

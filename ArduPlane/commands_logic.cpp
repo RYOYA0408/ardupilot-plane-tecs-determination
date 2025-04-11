@@ -649,8 +649,9 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
             const float B = prev_WP_loc.get_distance(flex_next_WP_loc);
             const float H = prev_WP_loc.alt/100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
-            flex_next_WP_loc.alt = h*100;
+            flex_next_WP_loc.set_alt_cm(h*100, Location::AltFrame::ABSOLUTE);
             set_offset_altitude_location(prev_WP_loc, flex_next_WP_loc);
+	    printf("commands_logic.cpp_001: prev_WP_loc.alt = %d, flex_next_WP_loc.alt = %d\n", prev_WP_loc.alt, flex_next_WP_loc.alt);
         }
         nav_controller->update_waypoint(prev_WP_loc, flex_next_WP_loc);
     } else {
@@ -807,6 +808,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float h = (A-B)/MAX(A, 1)*H;
             flex_next_WP_loc.alt = h*100 + home.alt;
             set_offset_altitude_location(P, flex_next_WP_loc);
+	    printf("commands_logic.cpp_002: P.alt = %d, flex_next_WP_loc.alt = %d\n", P.alt, flex_next_WP_loc.alt);
          }
         float acceptance_distance_m = 0.5*L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_next_WP_loc);
@@ -850,13 +852,15 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float B = auto_state.rtl_land_seq_lastwp_distance + 2.0*radius*loiter.total_cd/36000.0*M_PI;
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
             float h = (A-B)/MAX(A, 1)*H;
-            flex_prev_WP_loc.alt = h*100 + home.alt;
+//            flex_prev_WP_loc.alt = h*100 + home.alt;
+            flex_prev_WP_loc.set_alt_cm(h*100 + home.alt, Location::AltFrame::ABSOLUTE);
             if (flex_prev_WP_loc.alt < auto_state.rtl_land_seq_last_wp.alt) {
                 flex_prev_WP_loc.alt = auto_state.rtl_land_seq_last_wp.alt;
             }
             set_offset_altitude_location(loiter.start_point, flex_prev_WP_loc);
+	    printf("commands_logic.cpp_003: loiter.start_point.alt = %d, flex_prev_WP_loc.alt = %d\n", loiter.start_point.alt, flex_prev_WP_loc.alt);
         }
-        bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 5.0;         // 旋回角度が旋回すべき角度-5度を超えたかどうか
+        bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 0.2;         // 旋回角度が旋回すべき角度-5度を超えたかどうか
         float acceptance_distance_m = L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_prev_WP_loc);
         if (tp_dist <= acceptance_distance_m && c1) {       // 目標点への近接判定
@@ -868,6 +872,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             }
             auto_state.tp_circle_mode = 0;
             prev_WP_loc = flex_prev_WP_loc;
+	    flex_next_WP_loc = next_WP_loc;
         }
         
     }

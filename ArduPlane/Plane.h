@@ -500,6 +500,9 @@ private:
         // proportion to next waypoint
         float wp_proportion;
 
+	// wp_proportion が負になる場合のオフセット値
+	float wp_proportion_offset;
+
         // last time is_flying() returned true in milliseconds
         uint32_t last_flying_ms;
 
@@ -558,6 +561,9 @@ private:
 
         // are we circle tracking mode for this turning point? 
         int32_t tp_circle_mode;
+
+	// update_target_altitude() でのモード切り替え認識用
+	int32_t target_altitude_update_no;
 
         // 以下，DO_LAND_START 以降の着陸シーケンス関連変数
         // 着陸経路総距離

@@ -561,13 +561,14 @@ void AP_TECS::_update_height_demand(void)
         // compensation offset is decayed using the same time constant as the height demand filter.
         const float coef = MIN(_DT / (_DT + MAX(_hgt_dem_tconst, _DT)), 1.0f);
         _hgt_rate_dem = (_hgt_dem_rate_ltd - _hgt_dem_lpf) / _hgt_dem_tconst;
+	printf("AP_TECS.cpp: hgt_rate_dem = %f, hgt_dem_rate_ltd = %f, hgt_dem_lpf = %f, hgt_dem_tconst = %f\n", _hgt_rate_dem, _hgt_dem_rate_ltd, _hgt_dem_lpf, (float)_hgt_dem_tconst);
         _hgt_dem_lpf = _hgt_dem_rate_ltd * coef + (1.0f - coef) * _hgt_dem_lpf;
         _post_TO_hgt_offset *= (1.0f - coef);
         _hgt_dem = _hgt_dem_lpf + _post_TO_hgt_offset;
 
         // during approach compensate for height filter lag
         if (_flags.is_doing_auto_land) {
-            _hgt_dem += _hgt_dem_tconst * _hgt_rate_dem;
+//            _hgt_dem += _hgt_dem_tconst * _hgt_rate_dem;
         } else {
             // Don't allow height demand to get too far ahead of the vehicles current height
                 // if vehicle is unable to follow the demanded climb or descent

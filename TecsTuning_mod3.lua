@@ -1,4 +1,5 @@
 -- Plane TECS AutoTune script
+-- 使用した WayPoints : 
 
 -- 各パラメータ取得
 local thr_max = param:get("THR_MAX")
@@ -23,7 +24,7 @@ local dh_margin = 0.1 -- 巡航時の目標上昇率の許容誤差 [m/s]
 
 -- フラグ管理
 local scripting_rc = rc:find_channel_for_option(300) -- TECS チューニング用スイッチ ch
-local FREQUENCY = 10
+local FREQUENCY = 10    -- 計算刻み 10 ms
 local tecstune_running = false
 local get_climb_rate_sw = false
 local get_trim_thr_sw = false
@@ -50,10 +51,11 @@ function tune_tecs(sw)
     local throttle_now = SRV_Channels:get_output_scaled(k_throttle)
     ----------------------------------------------------------------------------
 
-    -- フラグ管理　--------------------------------------------------------------
+    -- フラグ管理　-----------------------------------------------------------------------------------------------------
     if sw and not tecstune_running then
         tecstune_running = true
         tecstune_stage = 1
+        -- 既定値 or 既定値からの計算で求められる変数 -------------------------------------------
         gcs:send_text(0, string.format("Starting main TECS tuning"))
         gcs:send_text(6, string.format("Specification Parameters:"))
         gcs:send_text(0, string.format("THR_MAX %.2f%%", thr_max))
@@ -61,6 +63,7 @@ function tune_tecs(sw)
         gcs:send_text(6, string.format("LIM_PITCH_MAX %.2f deg.", pitch_max))
         gcs:send_text(6, string.format("LIM_PITCH_MIN %.2f deg.", pitch_min))
         gcs:send_text(0, string.format("TECS_SINK_MAX get to %.2f m/s", sink_max_rate))
+        --------------------------------------------------------------------------------------
     end
 
     if not sw then
@@ -70,9 +73,9 @@ function tune_tecs(sw)
         tecstune_running = false
         tecstune_stage = 0
     end
-    ---------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------
 
-    -- 飛行ステージ別アクション -------------------------------------------------
+    -- 飛行ステージ別アクション ----------------------------------------------------------------------------------------
 
     -- 離陸時の最大上昇率取得
     if tecstune_stage == 1 then

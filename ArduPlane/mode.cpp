@@ -246,6 +246,7 @@ void Mode::update_target_altitude()
             plane.auto_state.target_altitude_update_no = 8;
             plane.auto_state.wp_proportion = 0;
             plane.auto_state.wp_proportion_offset = 0;
+	    plane.target_altitude.offset_cm = 0;
         }
         // control climb/descent rate
         plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));

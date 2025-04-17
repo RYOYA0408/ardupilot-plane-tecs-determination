@@ -336,7 +336,7 @@ void Plane::change_target_altitude(int32_t change_cm)
 void Plane::set_target_altitude_proportion(const Location &loc, float proportion)
 {
     set_target_altitude_location(loc);
-    printf("altitude.cpp_008: loc.alt = %d, proportion = %f\n", loc.alt, proportion);
+    printf("altitude.cpp_008: loc.alt = %d, proportion = %f, offset_cm = %d\n", loc.alt, proportion, target_altitude.offset_cm);
     proportion = constrain_float(proportion, 0.0f, 1.0f);
     change_target_altitude(-target_altitude.offset_cm*proportion);
     //rebuild the glide slope if we are above it and supposed to be climbing

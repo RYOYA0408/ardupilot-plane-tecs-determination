@@ -2454,6 +2454,7 @@ bool AP_Mission::jump_to_landing_sequence(const Location &current_loc)
 void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc)
 {
     plane.auto_state.rtl_land_seq_initial_loc = current_loc;
+    plane.auto_state.rtl_land_seq_initial_loc.alt = plane.target_altitude.amsl_cm;
     plane.auto_state.rtl_land_seq_lastwp_distance = 0;
     Location A = current_loc;       // 現在位置
     Location B;                     // 次の WP または TP

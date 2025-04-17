@@ -806,7 +806,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float B = auto_state.rtl_land_seq_lastwp_distance + P.get_distance(flex_next_WP_loc);
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
-            flex_next_WP_loc.alt = h*100 + home.alt;
+            flex_next_WP_loc.alt = h*100 + auto_state.rtl_land_seq_last_wp.alt;
             set_offset_altitude_location(P, flex_next_WP_loc);
 	    printf("commands_logic.cpp_002: P.alt = %d, flex_next_WP_loc.alt = %d\n", P.alt, flex_next_WP_loc.alt);
          }
@@ -821,6 +821,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             }
             auto_state.tp_circle_mode = cmd.get_loiter_turns() + 1;
             loiter.start_point = flex_next_WP_loc;
+	    loiter.start_point.alt = target_altitude.amsl_cm;
             return true;
         }
 
@@ -834,6 +835,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             }
             auto_state.tp_circle_mode = cmd.get_loiter_turns() + 1;
             loiter.start_point = flex_next_WP_loc;
+	    loiter.start_point.alt = target_altitude.amsl_cm;
             return true;
         }
     // Turning point 円周上を飛行中
@@ -853,7 +855,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
             float h = (A-B)/MAX(A, 1)*H;
 //            flex_prev_WP_loc.alt = h*100 + home.alt;
-            flex_prev_WP_loc.set_alt_cm(h*100 + home.alt, Location::AltFrame::ABSOLUTE);
+            flex_prev_WP_loc.alt = h*100 + auto_state.rtl_land_seq_last_wp.alt;
             if (flex_prev_WP_loc.alt < auto_state.rtl_land_seq_last_wp.alt) {
                 flex_prev_WP_loc.alt = auto_state.rtl_land_seq_last_wp.alt;
             }

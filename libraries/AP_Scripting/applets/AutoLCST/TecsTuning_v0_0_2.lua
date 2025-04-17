@@ -19,7 +19,7 @@ function tune_thrmax(sw)
 
     if sw and not thrmax_running then
         thrmax_running = true
-        thrmax_stage = 1
+        thrmax_stage = 2
         gcs:send_text(0, string.format("Starting THR_MAX tuning"))
     end
 

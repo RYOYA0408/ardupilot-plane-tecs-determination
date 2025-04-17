@@ -243,7 +243,8 @@ void Mode::update_target_altitude()
 	}
         // control climb/descent rate
         plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
-	printf("mode.cpp_008: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
+	printf("mode.cpp_008: flex_next_WP_loc.alt = %d, target_altitude.amsl_cm = %d\n", plane.flex_next_WP_loc.alt, plane.target_altitude.amsl_cm);
+	printf("mode.cpp_008: wp_proportion = %f, wp_proportion_offset = %f\n", plane.auto_state.wp_proportion, plane.auto_state.wp_proportion_offset);
     } else if (plane.auto_state.crosstrack && plane.auto_state.checked_for_autoland) {
 	if (plane.auto_state.target_altitude_update_no != 7) {
 	    plane.auto_state.target_altitude_update_no = 7;

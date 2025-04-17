@@ -104,7 +104,7 @@ void Plane::setup_glide_slope(void)
         */
         if (above_location_current(next_WP_loc)) {
             set_offset_altitude_location(prev_WP_loc, next_WP_loc);
-	    printf("altitude.cpp_001: prev_WP_loc.alt = %d, next_WP_loc.alt = %d\n", prev_WP_loc.alt, next_WP_loc.alt);
+	    printf("altitude.cpp_006: prev_WP_loc.alt = %d, next_WP_loc.alt = %d\n", prev_WP_loc.alt, next_WP_loc.alt);
         } else {
             reset_offset_altitude();
         }
@@ -126,7 +126,7 @@ void Plane::setup_glide_slope(void)
         if (adjusted_relative_altitude_cm() > 2000 || above_location_current(next_WP_loc)) {
 //            set_offset_altitude_location(prev_WP_loc, next_WP_loc);
 //	    flex_next_WP_loc = next_WP_loc;
-//	    printf("altitude.cpp_002: prev_WP_loc.alt = %d, next_WP_loc.alt = %d\n", prev_WP_loc.alt, next_WP_loc.alt);
+//	    printf("altitude.cpp_007: prev_WP_loc.alt = %d, next_WP_loc.alt = %d\n", prev_WP_loc.alt, next_WP_loc.alt);
         } else {
 //            reset_offset_altitude();
         }
@@ -346,6 +346,7 @@ void Plane::change_target_altitude(int32_t change_cm)
 void Plane::set_target_altitude_proportion(const Location &loc, float proportion)
 {
     set_target_altitude_location(loc);
+    printf("altitude.cpp_008: loc.alt = %d, proportion = %f\n", loc.alt, proportion);
     proportion = constrain_float(proportion, 0.0f, 1.0f);
     change_target_altitude(-target_altitude.offset_cm*proportion);
     //rebuild the glide slope if we are above it and supposed to be climbing
@@ -353,7 +354,6 @@ void Plane::set_target_altitude_proportion(const Location &loc, float proportion
         if(target_altitude.offset_cm > 0 && calc_altitude_error_cm() < -100 * g.glide_slope_threshold) {
             set_target_altitude_location(loc);
             set_offset_altitude_location(current_loc, loc);
-	    printf("altitude.cpp_003: current_loc.alt = %d, loc.alt = %d\n", current_loc.alt, loc.alt);
             change_target_altitude(-target_altitude.offset_cm*proportion);
             //adjust the new target offset altitude to reflect that we are partially already done
             if(proportion > 0.0f)

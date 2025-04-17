@@ -94,7 +94,6 @@ void Plane::navigate()
     if (next_WP_loc.lat == 0 && next_WP_loc.lng == 0) {
         return;
     }
-
     check_home_alt_change();
 
     // waypoint distance from plane
@@ -103,7 +102,12 @@ void Plane::navigate()
 
     if (auto_state.checked_for_autoland && reached_loiter_target()) {
         float sum_cd = fabs((float)loiter.sum_cd);
-        auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
+	if(loiter.sum_cd == 0 && loiter.total_cd == 0){
+	    auto_state.wp_proportion = 0;
+	}
+	else{
+            auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
+	}
 	printf("navigation.cpp_001: wp_proportion = %f\n", auto_state.wp_proportion);
     } else if (auto_state.tp_crosstrack) {
         if (auto_state.tp_circle_mode && loiter.total_cd != 0) {

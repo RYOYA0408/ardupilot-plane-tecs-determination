@@ -121,6 +121,7 @@ bool Plane::auto_takeoff_check(void)
         takeoff_state.launchTimerStarted = false;
         takeoff_state.last_tkoff_arm_time = 0;
         takeoff_state.start_time_ms = now;
+        takeoff_state.level_off_start_time_ms = 0;
         takeoff_state.throttle_max_timer_ms = now;
         steer_state.locked_course_err = 0; // use current heading without any error offset
         return true;
@@ -182,7 +183,7 @@ void Plane::takeoff_calc_pitch(void)
 {
     // First see if TKOFF_ROTATE_SPD applies.
     // This will set the pitch for the first portion of the takeoff, up until cruise speed is reached.
-    if (g.takeoff_rotate_speed > 0) {
+    if (!auto_state.rotation_complete && g.takeoff_rotate_speed > 0) {
         // A non-zero rotate speed is recommended for ground takeoffs.
         if (auto_state.highest_airspeed < g.takeoff_rotate_speed) {
             // We have not reached rotate speed, use the specified takeoff target pitch angle.
@@ -201,6 +202,7 @@ void Plane::takeoff_calc_pitch(void)
             return;
         }
     }
+    auto_state.rotation_complete = true;
 
     // We are now past the rotation.
     // Initialize pitch limits for TECS.
@@ -316,6 +318,7 @@ int16_t Plane::get_takeoff_pitch_min_cd(void)
                 // make a note of that altitude to use it as a start height for scaling
                 gcs().send_text(MAV_SEVERITY_INFO, "Takeoff level-off starting at %dm", int(remaining_height_to_target_cm/100));
                 auto_state.height_below_takeoff_to_level_off_cm = remaining_height_to_target_cm;
+                takeoff_state.level_off_start_time_ms = AP_HAL::millis();
             }
         }
     }
@@ -376,9 +379,8 @@ void Plane::landing_gear_update(void)
 #endif
 
 /*
- check takeoff_timeout; checks time after the takeoff start time; returns true if timeout has occurred and disarms on timeout
+ check takeoff_timeout; checks time after the takeoff start time; returns true if timeout has occurred
 */
-
 bool Plane::check_takeoff_timeout(void)
 {
     if (takeoff_state.start_time_ms != 0 && g2.takeoff_timeout > 0) {
@@ -400,3 +402,17 @@ bool Plane::check_takeoff_timeout(void)
      return false;
 }
 
+/*
+ check if the pitch level-off time has expired; returns true if timeout has occurred
+*/
+bool Plane::check_takeoff_timeout_level_off(void)
+{
+    if (takeoff_state.level_off_start_time_ms > 0) {
+        // A takeoff is in progress.
+        uint32_t now = AP_HAL::millis();
+        if ((now - takeoff_state.level_off_start_time_ms) > (uint32_t)(1000U * g.takeoff_pitch_limit_reduction_sec)) {
+            return true;
+        }
+    }
+    return false;
+}

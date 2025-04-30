@@ -1016,7 +1016,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
 
         self.fly_home_land_and_disarm(timeout=240)
 
-    def fly_home_land_and_disarm(self, timeout=120):
+    def fly_home_land_and_disarm(self, timeout=180):
         filename = "flaps.txt"
         self.progress("Using %s to fly home" % filename)
         self.load_generic_mission(filename)
@@ -4949,6 +4949,9 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
 
         self.set_parameters({
             "TKOFF_ROTATE_SPD": 15.0,
+            "TKOFF_PLIM_SEC": 0,  # Ensure TKOFF_PLIM_SEC doesn't interfere with the test.
+            "TKOFF_DIST": 500,  # Ensure stall prevention doesn't interfere with the test.
+            "TKOFF_ALT": 100  # Ditto
         })
         self.change_mode("TAKEOFF")
 
@@ -4963,11 +4966,83 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             raise NotAchievedException(f"Did not achieve correct takeoff pitch ({nav_pitch}).")
 
         # Check whether we've achieved correct target pitch after rotation.
-        self.wait_groundspeed(23, 24)
+        self.wait_groundspeed(24, 25)
         m = self.assert_receive_message('NAV_CONTROLLER_OUTPUT', timeout=5)
         nav_pitch = m.nav_pitch
         if nav_pitch > 15.1 or nav_pitch < 14.9:
             raise NotAchievedException(f"Did not achieve correct takeoff pitch ({nav_pitch}).")
+
+        self.fly_home_land_and_disarm()
+
+    def TakeoffBadLevelOff(self):
+        '''Ensure that the takeoff can be completed under 0 pitch demand.'''
+        '''
+        When using no airspeed, the pitch level-off will eventually command 0
+        pitch demand. Ensure that the plane can climb the final 2m to deem the
+        takeoff complete.
+        '''
+
+        self.customise_SITL_commandline(
+            [],
+            model='plane-catapult',
+            defaults_filepath=self.model_defaults_filepath("plane")
+        )
+        self.set_parameters({
+            "ARSPD_USE": 0.0,
+            "PTCH_TRIM_DEG": -10.0,
+            "RTL_AUTOLAND": 2, # The mission contains a DO_LAND_START item.
+            "TKOFF_ALT": 50.0,
+            "TKOFF_DIST": 1000.0,
+            "TKOFF_THR_MAX": 75.0,
+            "TKOFF_THR_MINACC": 3.0,
+        })
+
+        self.load_mission("flaps_tkoff_50.txt")
+        self.change_mode('AUTO')
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # Throw the catapult.
+        self.set_servo(7, 2000)
+
+        # Wait until we've reached the takeoff altitude.
+        target_alt = 50
+        self.wait_altitude(target_alt-1, target_alt+1, relative=True, timeout=30)
+
+        self.delay_sim_time(5)
+
+        self.disarm_vehicle(force=True)
+
+    def TakeoffLevelOffWind(self):
+        '''Ensure the level-off functionality works.'''
+        '''
+        This is primarily targeted to test whether the level-off angle works
+        correctly even though the groundspeed eventually drops in face of wind.
+        '''
+        tkoff_alt = 100.
+        self.set_parameters({
+            "TKOFF_ROTATE_SPD": 15.0,
+            "TKOFF_ALT": tkoff_alt,
+            "TKOFF_DIST": 500,  # Ensure stall prevention doesn't interfere with the test.
+            "TKOFF_PLIM_SEC": 5  # Give some more time to detect the level-off.
+        })
+        self.change_mode("TAKEOFF")
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # Wait until we're well past the rotation.
+        self.wait_groundspeed(24, 25)
+
+        self.set_parameters({
+            "SIM_WIND_DIR": 0.0,  # Set North wind.
+            "SIM_WIND_SPD": 10.0  # Enough to bring groundspeed below cruise speed.
+        })
+
+        self.wait_altitude(tkoff_alt-10, tkoff_alt, relative=True)
+        self.wait_level_flight(accuracy=10, timeout=1)  # Ensure we have roughly level-off.
+        self.delay_sim_time(5)
 
         self.fly_home_land_and_disarm()
 
@@ -6662,6 +6737,8 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.TakeoffTakeoff4,
             self.TakeoffTakeoff5,
             self.TakeoffGround,
+            self.TakeoffBadLevelOff,
+            self.TakeoffLevelOffWind,
             self.ForcedDCM,
             self.DCMFallback,
             self.MAVFTP,

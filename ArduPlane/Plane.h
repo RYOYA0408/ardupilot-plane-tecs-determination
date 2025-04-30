@@ -559,7 +559,6 @@ private:
         // last home altitude for detecting changes
         int32_t last_home_alt_cm;
 
-<<<<<<< HEAD
         // are we circle tracking mode for this turning point? 
         int32_t tp_circle_mode;
 
@@ -584,10 +583,8 @@ private:
 
         // 着陸地点
         Location rtl_landing_point;
-=======
         // have we finished the takeoff ratation (when it applies)?
         bool rotation_complete;
->>>>>>> ArduPilot-4.6
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED

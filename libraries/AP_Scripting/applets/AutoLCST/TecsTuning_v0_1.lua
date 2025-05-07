@@ -7,21 +7,26 @@ local thr_max = param:get("THR_MAX")            -- 最大スロットル率
 local thr_min = param:get("THR_MIN")            -- 最小スロットル率
 local arspd_max = param:get("ARSPD_FBW_MAX")    -- FBW の最大速度 (これを全体の最大速度と定義)
 
+-- MissionPlanner の DO_JUMP 検出用
+local last_nav_index = -1   -- 前回のミッションインデックス記録用
+
 -- 値安定性チェック用のバッファー&変数定義
 local arspd_val_buff = {}       -- 実測速度値バッファ 
 local arspd_buff = {}           -- 速度判定バッファ
---local dh_buff = {}            -- 上昇率バッファ
-local arspd_margin = 0.3        -- 許容速度誤差
-local arspd_diff_margin = 0.05  -- 許容速度変化率
-local dh_margin = 0.25          -- 許容上昇率誤差
+local height_val_buff = {}      -- 実測高度値バッファ
+local height_buff = {}          -- 高度バッファ
 local buff_size = 40            -- バッファーサイズ N (N/FREQUENCY [秒])
 local dt = 2.0                  -- 変化率計算時の刻み幅
 
--- 高度に関する目標パラメータ・許容誤差
+-- 目標パラメータ・許容誤差
+local arspd_margin = 0.3        -- 許容速度誤差
+local arspd_diff_margin = 0.05  -- 許容速度変化率(加速度)
+local dh_margin = 0.25          -- 許容上昇率誤差
+local height_margin = 1.5       -- 目標巡航高度の許容誤差
+
 local height_climb_min = 70     -- 速度監視開始高度
-local target_alt = 140      -- 目標上昇高度
-local cruise_height = 40.0  -- 目標巡航高度 [m]
-local height_margin = 1.5   -- 目標巡航高度の許容誤差 [m]
+local target_alt = 140          -- 目標上昇高度 
+local cruise_height = 40.0      -- 目標巡航高度 (ミッションに依存)
 
 -- 上昇回数に応じた上昇ピッチ角のテーブルリスト
 local pitch_table_max = 23  -- 初回上昇時のピッチ角
@@ -39,7 +44,6 @@ local tecstune_running = false
 local trimspd_sw = false
 local climb_sw = false
 local get_climb_rate_sw = false
-local ft_sw = false   -- 上昇強制終了フラグ
 local get_sink_min_sw = false
 local set_spdw_sw = false
 local get_trim_thr_sw = false
@@ -52,26 +56,46 @@ local get_trim_thr_sw = false
 -- 4: トリムスロットル率取得
 local tecstune_stage = 0
 
+-- フラグ管理&初期化
+function reset_all_flags()
+    trimspd_sw = false
+    climb_sw = false
+    get_climb_rate_sw = false
+    get_sink_min_sw = false
+    set_spdw_sw = false
+    get_trim_thr_sw = false
+end
+
+-- DO_JUMP 検出関数
+function check_jump_trigger()
+    local current_index = mission:get_current_nav_index()
+    if current_index == 2 and last_nav_index ~= 2 then
+        last_nav_index = 2
+        return true
+    end
+    last_nav_index = current_index
+    return false
+end
 
 -- 現在の基本状態変数取得関数
--- @ return pitch_deg, arspd_now, dh_now, height_now, throttle_now
+-- @return pitch_deg, arspd_now, dh_now, height_now, throttle_now
 function update_sensors()
-    local pitch_deg = math.deg(ahrs:get_pitch())
-    local arspd_now = ahrs:airspeed_estimate()  -- 速度
-    local dh_now =  - ahrs:get_velocity_NED():z() -- 右手系 z 軸下向きの速度ベクトル (上昇率)
-    local height_now =  - ahrs:get_relative_position_NED_home():z() -- 地面からの相対高度
-    local throttle_now = SRV_Channels:get_output_scaled(k_throttle)
+    local pitch_deg = math.deg(ahrs:get_pitch())                        -- ピッチ角
+    local arspd_now = ahrs:airspeed_estimate()                          -- 速度
+    local dh_now =  - ahrs:get_velocity_NED():z()                       -- 右手系 z 軸下向きの速度ベクトル (上昇率)
+    local height_now =  - ahrs:get_relative_position_NED_home():z()     -- 地面からの相対高度 (下向き正)
+    local throttle_now = SRV_Channels:get_output_scaled(k_throttle)     -- スロットル率
     return pitch_deg, arspd_now, dh_now, height_now, throttle_now
 end
 
 
 -- 値と値の変化率の両面から安定性を評価し, 判定バッファに記録, 全体が安定していれば all_ok を返す
--- @param now_val           現在の値 (例：arspd_now)
--- @param target_val        目標値 (例：TRIM_ARSPD_CM * 0.01)
--- @param val_buff          値バッファ (例：arspd_val_buff)
--- @param flag_buff         安定性判定用バッファ (例：arspd_buff ← これは値を持っているんじゃなくて, 要素が boolean 的)
--- @param err_margin        値の許容誤差 (例：arspd_margin)
--- @param slope_margin      許容値変化率 (例：arspd_diff_margin)
+-- @param  now_val           現在の値 (例：arspd_now)
+-- @param  target_val        目標値 (例：TRIM_ARSPD_CM * 0.01)
+-- @param  val_buff          値バッファ (例：arspd_val_buff)
+-- @param  flag_buff         安定性判定用バッファ (例：arspd_buff ← これは値を持っているんじゃなくて, 要素が boolean 的)
+-- @param  err_margin        値の許容誤差 (例：arspd_margin)
+-- @param  slope_margin      許容値変化率 (例：arspd_diff_margin)
 -- @return boolean all_ok
 function val_stab_check(now_val, target_val, val_buff, flag_buff, stab_sw, err_margin, slope_margin)
     -- バッファ値を更新
@@ -118,10 +142,17 @@ end
 
 function tecstuning(sw)
 
+    -- プロポスイッチ ON でスクリプト有効化 (初回限定)
     if sw and not tecstune_running then
+        gcs:send_text(0, string.format("TECS Tune Script Standby (Switch ON)"))
         tecstune_running = true
+        tecstune_stage = 0
+    end
+
+    -- スイッチ ON 中かつ DO_JUMP によって WP2 になった瞬間に Stage=1 に移行
+    if tecstune_running and tecstune_stage == 0 and check_jump_trigger() then
         tecstune_stage = 1
-        gcs:send_text(0, string.format("TECS Tune Switch ON"))
+        gcs:send_text(6, "Start Acceleration (stage 1)")
     end
 
     if not sw then
@@ -131,18 +162,11 @@ function tecstuning(sw)
             param:set_and_save("TECS_SPDWEIGHT", 1)
             gcs:send_text(0, string.format("TECS Tune Switch OFF"))
             mission:set_current_cmd(2)
-            vehicle:set_mode(10)
         end
         -- sw 管理 (TecsTune Switch OFF で, すべて false)
-        tecstune_running = false
-        trimspd_sw = false
-        climb_sw = false
-        get_climb_rate_sw = false
-        ft_sw = false
-        get_sink_min_sw = false
-        set_spdw_sw = false
-        get_trim_thr_sw = false
         tecstune_stage = 0
+        tecstune_running = false
+        reset_all_flags()
     end
 
     -- 加速フェーズ：上昇飛行直前に TRIM_ARSPD 一時的に 25 → 30 m/s とすることで間接的にスロットル率を上昇させる
@@ -152,7 +176,6 @@ function tecstuning(sw)
             param:set_and_save("TRIM_ARSPD_CM", 3000)   --トリム速度値を変更
             local trim_arspd_now = param:get("TRIM_ARSPD_CM")
             gcs:send_text(0, string.format("Set TRIM_ARSPD to: %d m/s", trim_arspd_now*0.01))
-            gcs:send_text(6, "Start Acceleration (stage 1)")
             trimspd_sw = true
         end
         if trimspd_sw and arspd_now > arspd_max then
@@ -163,7 +186,7 @@ function tecstuning(sw)
     -- 最大上昇率 & 最大・最小ピッチ角 & 理論最大降下率 取得フェーズ
     if tecstune_stage == 2 then
         local pitch_deg, arspd_now, dh_now, height_now, throttle_now = update_sensors()
-        local item = mission:get_item(5) -- 5番目のミッションを取得
+        local item = mission:get_item(6) -- 6番目のミッションを取得
 
         -- 上昇させるために TKOFF ミッションを書き換え & 上昇回数の記録
         if item and not climb_sw then
@@ -175,8 +198,8 @@ function tecstuning(sw)
             item:command(22)            -- TKOFFコマンド番号
             item:param1(pitch_cmd)      -- 任意の上昇ピッチ角
             item:z(target_alt)          -- 上昇高度
-            mission:set_item(5, item)   -- TKOFFコマンドの指示内容を上書き
-            mission:set_current_cmd(5)  -- TKOFFコマンドへジャンプ
+            mission:set_item(6, item)   -- TKOFFコマンドの指示内容を上書き
+            mission:set_current_cmd(6)  -- TKOFFコマンドへジャンプ
             gcs:send_text(6, "Start climb motion (stage 2)")
             
             -- 上昇飛行に移行後 TRIM_ARSPD = 25 m/s に復帰させる
@@ -215,8 +238,8 @@ function tecstuning(sw)
                 gcs:send_text(0, string.format("TECS_SINK_MAX get to %.2f m/s", sink_max_rate))
                 -- パラメータセット用データ (Increment & Range 調整後)
                 local climb_max_rate_IR = math.max(0.1, math.min(math.floor(climb_max_rate*10 + 0.5) / 10))
-                local pitch_max_IR = math.max(0.0, math.min(9000, math.floor(pitch_max*100 + 0.5)))
-                local pitch_min_IR = math.max(-9000, math.min(0, math.floor(pitch_min*100 + 0.5)))
+                local pitch_max_IR = math.max(0.0, math.min(9000, math.floor(pitch_max / 1.0 + 0.5)*100))
+                local pitch_min_IR = math.max(-9000, math.min(0, math.floor(pitch_min / 1.0 + 0.5)*100))
                 local sink_max_rate_IR = math.max(0.1, math.min(20.0, math.floor(math.abs(sink_max_rate)*10 - 0.5) / 10))
                 -- 記録テスト
                 param:set_and_save("SCR_USER2", climb_max_rate_IR)
@@ -238,11 +261,12 @@ function tecstuning(sw)
         end
 
         -- 最大上昇高度に達し強制終了
-        if climb_sw and height_now >= target_alt and not ft_sw then
-            mission:set_current_cmd(2)
+        if climb_sw and height_now >= target_alt then
+            tecstune_stage = 0
+            reset_all_flags()
             vehicle:set_mode(10)    -- 勝手にRTLモードになる場合があるため Auto モードを噛ませる
-            gcs:send_text(0, "Return to MP 2")
-            ft_sw = true
+            mission:set_current_cmd(5)
+            gcs:send_text(0, "Return to Stage 1")
         end
     end
 
@@ -281,7 +305,7 @@ function tecstuning(sw)
                 gcs:send_text(6, string.format("TECS_SPDWEIGHT set to: %d", param:get("TECS_SPDWEIGHT")))
                 gcs:send_text(6, "Start get TRIM_THROTTLE (stage 4)")
                 get_sink_min_sw = true
-                mission:set_current_cmd(2)
+                --mission:set_current_cmd(2)
                 tecstune_stage = 4
             end
         end
@@ -291,17 +315,23 @@ function tecstuning(sw)
     if tecstune_stage == 4 then
         local _, arspd_now, dh_now, height_now, throttle_now = update_sensors()
         local arspd_target = param:get("TRIM_ARSPD_CM") * 0.01
-        local height_error = math.abs(cruise_height - height_now)
+        --local height_error = math.abs(cruise_height - height_now)
 
-        -- 速度安定性のチェック
+        -- 速度安定性チェック
         local arspd_stable = val_stab_check(arspd_now, arspd_target,
                                             arspd_val_buff, arspd_buff,
                                             get_trim_thr_sw,
                                             arspd_margin, arspd_diff_margin)
 
+        -- 高度&上昇率安定性チェック (解析的)
+        local alt_dh_stable = val_stab_check(height_now, cruise_height,
+                                          height_val_buff, height_buff,
+                                          get_trim_thr_sw,
+                                          height_margin, dh_margin)
+
         if not get_trim_thr_sw
             and arspd_stable
-            and height_error <= height_margin
+            and alt_dh_stable
             and math.abs(dh_now) <= dh_margin then
             
             -- GCS 送信用の生データ
@@ -315,7 +345,7 @@ function tecstuning(sw)
             
             gcs:send_text(0, string.format("Finished TecsTune"))
             get_trim_thr_sw = true
-            mission:set_current_cmd(2)
+            --mission:set_current_cmd(2)
             vehicle:set_mode(10)
         end
     end

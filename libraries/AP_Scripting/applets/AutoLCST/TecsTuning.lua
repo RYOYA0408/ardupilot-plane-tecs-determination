@@ -1,4 +1,4 @@
--- Plane TECS AutoTune script
+-- Plane TECS Tune Script
 
 -- 必要な固定変数を取得
 local FREQUENCY = 10                            -- コードのサンプリング周波数
@@ -7,8 +7,10 @@ local thr_max = param:get("THR_MAX")            -- 最大スロットル率
 local thr_min = param:get("THR_MIN")            -- 最小スロットル率
 local arspd_max = param:get("ARSPD_FBW_MAX")    -- FBW の最大速度 (これを全体の最大速度と定義)
 
--- MissionPlanner の DO_JUMP 検出用
+-- MissionPlanner 関連の定義
 local last_nav_index = -1   -- 前回のミッションインデックス記録用
+local tkoff_cmd_num = 6     -- 巡航時用ピッチアップコマンドの代替となる TAKEOFF コマンドの番号
+local dojump_cmd_num = 5    -- DO_JUMP コマンドの番号
 
 -- 値安定性チェック用のバッファー&変数定義
 local arspd_val_buff = {}       -- 実測速度値バッファ 
@@ -29,6 +31,7 @@ local target_alt = 140          -- 目標上昇高度
 local cruise_height = 40.0      -- 目標巡航高度 (ミッションに依存)
 
 -- 上昇回数に応じた上昇ピッチ角のテーブルリスト
+local climb_cnt = 0         -- 上昇回数の初期化
 local pitch_table_max = 23  -- 初回上昇時のピッチ角
 local pitch_table_min = 15  -- 最終上昇時のピッチ角
 local pitch_table = {}      -- ピッチ角テーブルの生成
@@ -55,6 +58,7 @@ local get_trim_thr_sw = false
 -- 3: 最小降下率の取得
 -- 4: トリムスロットル率取得
 local tecstune_stage = 0
+
 
 -- フラグ管理&初期化
 function reset_all_flags()
@@ -87,7 +91,6 @@ function update_sensors()
     local throttle_now = SRV_Channels:get_output_scaled(k_throttle)     -- スロットル率
     return pitch_deg, arspd_now, dh_now, height_now, throttle_now
 end
-
 
 -- 値と値の変化率の両面から安定性を評価し, 判定バッファに記録, 全体が安定していれば all_ok を返す
 -- @param  now_val           現在の値 (例：arspd_now)
@@ -166,6 +169,7 @@ function tecstuning(sw)
         -- sw 管理 (TecsTune Switch OFF で, すべて false)
         tecstune_stage = 0
         tecstune_running = false
+        climb_cnt = 0
         reset_all_flags()
     end
 
@@ -175,7 +179,7 @@ function tecstuning(sw)
         if not trimspd_sw then
             param:set_and_save("TRIM_ARSPD_CM", 3000)   --トリム速度値を変更
             local trim_arspd_now = param:get("TRIM_ARSPD_CM")
-            gcs:send_text(0, string.format("Set TRIM_ARSPD to: %d m/s", trim_arspd_now*0.01))
+            gcs:send_text(6, string.format("Set TRIM_ARSPD to: %d m/s", trim_arspd_now*0.01))
             trimspd_sw = true
         end
         if trimspd_sw and arspd_now > arspd_max then
@@ -186,31 +190,32 @@ function tecstuning(sw)
     -- 最大上昇率 & 最大・最小ピッチ角 & 理論最大降下率 取得フェーズ
     if tecstune_stage == 2 then
         local pitch_deg, arspd_now, dh_now, height_now, throttle_now = update_sensors()
-        local item = mission:get_item(6) -- 6番目のミッションを取得
+        local item = mission:get_item(tkoff_cmd_num) -- 6番目のミッションを取得
 
         -- 上昇させるために TKOFF ミッションを書き換え & 上昇回数の記録
         if item and not climb_sw then
-            local lua_cnt = param:get("SCR_USER1")                                  -- 上昇回数を取得 (0スタート)
-            local pitch_cmd = pitch_table[math.min(lua_cnt + 1, #pitch_table)]      -- 上昇回数に応じてピッチ角テーブルから次の上昇ピッチ角を取得
-            param:set_and_save("LIM_PITCH_MAX", pitch_cmd*100)                      -- 機体の最大ピッチ角を再設定して上昇時のピッチ角オーバーシュートを防止
+            --local lua_cnt = param:get("SCR_USER1")                                  -- 上昇回数を取得 (0スタート)
+            local pitch_cmd = pitch_table[math.min(climb_cnt + 1, #pitch_table)]      -- 上昇回数に応じてピッチ角テーブルから次の上昇ピッチ角を取得
+            param:set_and_save("LIM_PITCH_MAX", pitch_cmd*100)                        -- 機体の最大ピッチ角を再設定して上昇時のピッチ角オーバーシュートを防止
             gcs:send_text(6, string.format("Pitch up angle set to: %.2f deg.", pitch_cmd))
             
             item:command(22)            -- TKOFFコマンド番号
             item:param1(pitch_cmd)      -- 任意の上昇ピッチ角
             item:z(target_alt)          -- 上昇高度
-            mission:set_item(6, item)   -- TKOFFコマンドの指示内容を上書き
-            mission:set_current_cmd(6)  -- TKOFFコマンドへジャンプ
-            gcs:send_text(6, "Start climb motion (stage 2)")
+            mission:set_item(tkoff_cmd_num, item)   -- TKOFFコマンドの指示内容を上書き
+            mission:set_current_cmd(tkoff_cmd_num)  -- TKOFFコマンドへジャンプ
+            gcs:send_text(0, "Start climb motion (stage 2)")
             
             -- 上昇飛行に移行後 TRIM_ARSPD = 25 m/s に復帰させる
             param:set_and_save("TRIM_ARSPD_CM", 2500)
             local trim_arspd_now = param:get("TRIM_ARSPD_CM")
-            gcs:send_text(0, string.format("Return Set TRIM_ARSPD to: %d m/s", trim_arspd_now*0.01))
+            gcs:send_text(6, string.format("Return Set TRIM_ARSPD to: %d m/s", trim_arspd_now*0.01))
             
             -- 上昇回数を加算
-            lua_cnt = lua_cnt + 1
-            param:set_and_save("SCR_USER1", lua_cnt)
-            gcs:send_text(6, string.format("Climb Count: %d", param:get("SCR_USER1")))
+            --lua_cnt = lua_cnt + 1
+            --param:set_and_save("SCR_USER1", lua_cnt)
+            climb_cnt = climb_cnt + 1
+            gcs:send_text(6, string.format("Climb Count: %d", climb_cnt))
             climb_sw = true
         end
         
@@ -240,12 +245,12 @@ function tecstuning(sw)
                 local climb_max_rate_IR = math.max(0.1, math.min(math.floor(climb_max_rate*10 + 0.5) / 10))
                 local pitch_max_IR = math.max(0.0, math.min(9000, math.floor(pitch_max / 1.0 + 0.5)*100))
                 local pitch_min_IR = math.max(-9000, math.min(0, math.floor(pitch_min / 1.0 + 0.5)*100))
-                local sink_max_rate_IR = math.max(0.1, math.min(20.0, math.floor(math.abs(sink_max_rate)*10 - 0.5) / 10))
+                local sink_max_rate_IR = math.max(0.1, math.min(20.0, math.floor(math.abs(sink_max_rate)*10 + 0.5) / 10))
                 -- 記録テスト
-                param:set_and_save("SCR_USER2", climb_max_rate_IR)
-                param:set_and_save("SCR_USER3", pitch_max_IR)
-                param:set_and_save("SCR_USER4", pitch_min_IR)
-                param:set_and_save("SCR_USER5", sink_max_rate_IR)
+                param:set_and_save("SCR_USER1", climb_max_rate_IR)
+                param:set_and_save("SCR_USER2", pitch_max_IR)
+                param:set_and_save("SCR_USER3", pitch_min_IR)
+                param:set_and_save("SCR_USER4", sink_max_rate_IR)
                 --[[
                 param:set_and_save("TECS_CLMB_MAX", climb_max_rate_IR)
                 param:set_and_save("LIM_PITCH_MAX", pitch_max_IR)
@@ -255,7 +260,7 @@ function tecstuning(sw)
 
                 get_climb_rate_sw = true
                 mission:set_current_cmd(2)
-                gcs:send_text(6, "Start get TECS_SINK_MIN (stage 3)")
+                gcs:send_text(0, "Start get TECS_SINK_MIN (stage 3)")
                 tecstune_stage = 3
             end
         end
@@ -264,8 +269,8 @@ function tecstuning(sw)
         if climb_sw and height_now >= target_alt then
             tecstune_stage = 0
             reset_all_flags()
-            vehicle:set_mode(10)    -- 勝手にRTLモードになる場合があるため Auto モードを噛ませる
-            mission:set_current_cmd(5)
+            --vehicle:set_mode(10)                       -- 勝手にRTLモードになる場合があるため Auto モードを噛ませる
+            mission:set_current_cmd(dojump_cmd_num)      -- DO_JUMP コマンドへ移行
             gcs:send_text(0, "Return to Stage 1")
         end
     end
@@ -296,14 +301,14 @@ function tecstuning(sw)
                 -- GCS へ結果を送信
                 gcs:send_text(0, string.format("TECS_SINK_MIN get to %.2f m/s", sink_min_rate))
                 -- パラメータセット用データ (Increment & Range 調整後)
-                local sink_min_rate_IR = math.max(0.1, math.min(10.0, math.floor(math.abs(sink_min_rate)*10 - 0.5) / 10))
+                local sink_min_rate_IR = math.max(0.1, math.min(10.0, math.floor(math.abs(sink_min_rate)*10 + 0.5) / 10))
                 -- 記録テスト
-                param:set_and_save("SCR_USER6", sink_min_rate_IR)
+                param:set_and_save("SCR_USER5", sink_min_rate_IR)
                 --param:set_and_save("TECS_SINK_MIN", sink_min_rate_IR)
                 
                 param:set_and_save("TECS_SPDWEIGHT", 1)
                 gcs:send_text(6, string.format("TECS_SPDWEIGHT set to: %d", param:get("TECS_SPDWEIGHT")))
-                gcs:send_text(6, "Start get TRIM_THROTTLE (stage 4)")
+                gcs:send_text(0, "Start get TRIM_THROTTLE (stage 4)")
                 get_sink_min_sw = true
                 --mission:set_current_cmd(2)
                 tecstune_stage = 4
@@ -315,7 +320,6 @@ function tecstuning(sw)
     if tecstune_stage == 4 then
         local _, arspd_now, dh_now, height_now, throttle_now = update_sensors()
         local arspd_target = param:get("TRIM_ARSPD_CM") * 0.01
-        --local height_error = math.abs(cruise_height - height_now)
 
         -- 速度安定性チェック
         local arspd_stable = val_stab_check(arspd_now, arspd_target,
@@ -325,9 +329,9 @@ function tecstuning(sw)
 
         -- 高度&上昇率安定性チェック (解析的)
         local alt_dh_stable = val_stab_check(height_now, cruise_height,
-                                          height_val_buff, height_buff,
-                                          get_trim_thr_sw,
-                                          height_margin, dh_margin)
+                                             height_val_buff, height_buff,
+                                             get_trim_thr_sw,
+                                             height_margin, dh_margin)
 
         if not get_trim_thr_sw
             and arspd_stable
@@ -339,17 +343,19 @@ function tecstuning(sw)
             -- GCS へ結果を送信
             gcs:send_text(0, string.format("TRIM_THROTTLE get to %.2f%%", trim_throttle))
             -- パラメータセット用データ (Increment & Range 調整後)
-            --local trim_throttle_IR = math.max(0, math.min(100, math.floor(trim_throttle + 0.5)))
+            local trim_throttle_IR = math.max(0, math.min(100, math.floor(trim_throttle + 0.5)))
             -- 記録テスト
+            param:set_and_save("SCR_USER6", trim_throttle_IR)
             --param:set_and_save("TRIM_THROTTLE", trim_throttle_IR)
             
             gcs:send_text(0, string.format("Finished TecsTune"))
             get_trim_thr_sw = true
             --mission:set_current_cmd(2)
-            vehicle:set_mode(10)
+            --vehicle:set_mode(10)
         end
     end
 end
+
 
 function update()
     local mode = vehicle:get_mode()

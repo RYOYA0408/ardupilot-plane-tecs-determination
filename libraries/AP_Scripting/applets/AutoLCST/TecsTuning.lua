@@ -1,38 +1,65 @@
 -- Plane TECS Tune Script
 
--- 必要な固定変数を取得
-local FREQUENCY = 10                            -- コードのサンプリング周波数
+-- 必要な固定変数を取得/設定
 local k_throttle = 70                           -- スロットルチャンネル番号
 local thr_max = param:get("THR_MAX")            -- 最大スロットル率
 local thr_min = param:get("THR_MIN")            -- 最小スロットル率
 local arspd_max = param:get("ARSPD_FBW_MAX")    -- FBW の最大速度 (これを全体の最大速度と定義)
+local set2up_arspd = 3000
 
 -- MissionPlanner 関連の定義
 local last_nav_index = -1   -- 前回のミッションインデックス記録用
 local tkoff_cmd_num = 6     -- 巡航時用ピッチアップコマンドの代替となる TAKEOFF コマンドの番号
 local dojump_cmd_num = 5    -- DO_JUMP コマンドの番号
 
--- 値安定性チェック用のバッファー&変数定義
+-- 安定性評価用のバッファー&変数定義
 local arspd_val_buff = {}       -- 実測速度値バッファ 
-local arspd_buff = {}           -- 速度判定バッファ
+local arspd_buff = {}           -- 速度安定性判定バッファ
 local height_val_buff = {}      -- 実測高度値バッファ
-local height_buff = {}          -- 高度バッファ
-local buff_size = 40            -- バッファーサイズ N (N/FREQUENCY [秒])
-local dt = 2.0                  -- 変化率計算時の刻み幅
+local height_buff = {}          -- 高度安定性判定バッファ
+local FREQUENCY = 10            -- コードのサンプリング周波数(ms)
+local dt = FREQUENCY / 1000     -- 安定性評価時の刻み幅
+local dt_log = 0.1              -- UAV Log Viewer のログ周期
+local obs_time = 2              -- 観測時間
+local buff_size = math.floor(obs_time / dt) -- バッファーサイズ (整数)
 
 -- 目標パラメータ・許容誤差
+local scale = math.sqrt(dt / dt_log)    -- UAV Log Viewer から取得した諸々の閾値を実験用にスケーリングする係数
+-- 20241218 の実験データから算出した閾値 (0.1秒周期で計算したデータ値)
+local arspd_sigma_log = 0.6869                  -- 速度不偏標準偏差
+local arspd_diff_sigma_log = 0.5626             -- 機首方向加速度不偏標準偏差
+local dh_sigma_log = 0.5510                     -- 上昇率不偏標準偏差
+local height_sigma_log = 0.5360                 -- 高度不偏標準偏差
+-- ノイズ有り状態変数生成用
+local arspd_std = arspd_sigma_log * scale       -- 速度不偏標準偏差
+local dh_std = dh_sigma_log * scale             -- 上昇率不偏標準偏差
+local height_std = height_sigma_log * scale     -- 高度不偏標準偏差
+-- 安定性評価用マージン
+local margin_scale = 1.5                                        -- マージンスケール
+local ci = 1.96                                                 -- 95 % 信頼区間
+local arspd_margin = ci * arspd_std                             -- 許容速度誤差
+local arspd_std_margin = arspd_std * margin_scale               -- 許容速度不偏標準偏差
+local arspd_diff_margin = ci * arspd_diff_sigma_log * scale     -- 許容加速度誤差
+local dh_margin = ci * dh_std                                   -- 許容上昇率誤差
+--local dh_std_margin = dh_std                                  -- 許容上昇率不偏標準偏差
+local height_margin = ci * height_std                           -- 許容目標巡航高度誤差
+local height_std_margin = height_std * margin_scale             -- 許容高度不偏標準偏差
+--[[
+-- SITL シミュレーション用のタイトな閾値 (ノイズ無)
 local arspd_margin = 0.3        -- 許容速度誤差
 local arspd_diff_margin = 0.05  -- 許容速度変化率(加速度)
 local dh_margin = 0.25          -- 許容上昇率誤差
 local height_margin = 1.5       -- 目標巡航高度の許容誤差
+]]--
 
-local height_climb_min = 70     -- 速度監視開始高度
-local target_alt = 140          -- 目標上昇高度 
+local height_climb_min = 60     -- 速度監視開始高度 70
+local target_alt = 150          -- 目標上昇高度
+local target_alt_limit = target_alt - 10
 local cruise_height = 40.0      -- 目標巡航高度 (ミッションに依存)
 
 -- 上昇回数に応じた上昇ピッチ角のテーブルリスト
 local climb_cnt = 0         -- 上昇回数の初期化
-local pitch_table_max = 23  -- 初回上昇時のピッチ角
+local pitch_table_max = 22  -- 初回上昇時のピッチ角
 local pitch_table_min = 15  -- 最終上昇時のピッチ角
 local pitch_table = {}      -- ピッチ角テーブルの生成
 -- テーブルへインサート
@@ -81,18 +108,31 @@ function check_jump_trigger()
     return false
 end
 
+-- Box-Muller 法によるガウシアンノイズ生成関数
+function noise(sigma)
+    local a, b
+    repeat
+        a = math.random()
+    until a > 0
+
+    b = math.random()
+
+    local z = math.sqrt(-2*math.log(a)) * math.cos(2*math.pi*b)
+    return z * sigma
+end
+
 -- 現在の基本状態変数取得関数
 -- @return pitch_deg, arspd_now, dh_now, height_now, throttle_now
 function update_sensors()
     local pitch_deg = math.deg(ahrs:get_pitch())                        -- ピッチ角
-    local arspd_now = ahrs:airspeed_estimate()                          -- 速度
-    local dh_now =  - ahrs:get_velocity_NED():z()                       -- 右手系 z 軸下向きの速度ベクトル (上昇率)
-    local height_now =  - ahrs:get_relative_position_NED_home():z()     -- 地面からの相対高度 (下向き正)
+    local arspd_now = ahrs:airspeed_estimate() + noise(arspd_std)                          -- 速度
+    local dh_now =  - ahrs:get_velocity_NED():z() + noise(dh_std)                       -- 右手系 z 軸下向きの速度ベクトル (上昇率)
+    local height_now =  - ahrs:get_relative_position_NED_home():z() + noise(height_std)     -- 地面からの相対高度 (下向き正)
     local throttle_now = SRV_Channels:get_output_scaled(k_throttle)     -- スロットル率
     return pitch_deg, arspd_now, dh_now, height_now, throttle_now
 end
 
--- 値と値の変化率の両面から安定性を評価し, 判定バッファに記録, 全体が安定していれば all_ok を返す
+-- 安定性評価し, 判定バッファに記録, 全体が安定していれば all_ok を返す
 -- @param  now_val           現在の値 (例：arspd_now)
 -- @param  target_val        目標値 (例：TRIM_ARSPD_CM * 0.01)
 -- @param  val_buff          値バッファ (例：arspd_val_buff)
@@ -100,7 +140,7 @@ end
 -- @param  err_margin        値の許容誤差 (例：arspd_margin)
 -- @param  slope_margin      許容値変化率 (例：arspd_diff_margin)
 -- @return boolean all_ok
-function val_stab_check(now_val, target_val, val_buff, flag_buff, stab_sw, err_margin, slope_margin)
+function val_stab_check(now_val, target_val, val_buff, flag_buff, stab_sw, err_margin, slope_margin, stddev_margin)
     -- バッファ値を更新
     -- 値を随時バッファに記録&サイズを超えたら古いデータから削除
     table.insert(val_buff, now_val)
@@ -108,19 +148,54 @@ function val_stab_check(now_val, target_val, val_buff, flag_buff, stab_sw, err_m
         table.remove(val_buff, 1)
     end
 
-    -- 値の変化率計算 (※ N < buff_size)
-    local slope_ok = false
-    local N = math.floor(FREQUENCY * dt)
-    if #val_buff >= N + 1 then   -- 最低1秒間の幅確保
-        local dV = val_buff[#val_buff] - val_buff[#val_buff - N]
-        local slope = math.abs(dV / dt)
-        slope_ok = slope <= slope_margin
+    -- 目標値との誤差チェック
+    local err = math.abs(now_val - target_val)
+    local err_ok = err <= err_margin
+    --[[
+    -- 区間変化率の最大値チェック
+    --local slope_ok = true
+    local total_slope, count = 0, 0
+    for i = 2, #val_buff do
+        local dv = val_buff[i] - val_buff[i-1]
+        local slope = math.abs(dv / dt)
+        total_slope = total_slope + slope
+        count = count + 1
+        --[[
+        if slope > slope_margin then
+            slope_ok = false
+            break
+        end
+    end
+    local avg_slope = total_slope / count
+    local slope_ok = avg_slope <= slope_margin
+    ]]--
+
+    -- 不偏標準偏差チェック (統計的安定性)
+    local stddev_ok = false
+    local stddev = 0
+    --local stddev_ok = true
+    
+    if #val_buff >= 2 then
+        local sum, sumsq = 0, 0
+        for _, v in ipairs(val_buff) do
+            sum = sum + v
+            sumsq = sumsq + v*v
+        end
+        local mean = sum / #val_buff
+        local variance = math.max(0, (sumsq - #val_buff*mean*mean) / (#val_buff - 1))
+        stddev = math.sqrt(variance)
+        stddev_ok = stddev <= stddev_margin
     end
 
-    -- 誤差監視 + 変化率チェック → true/false (true = stable) フラグに変換
-    local err = math.abs(now_val - target_val)
-    local stable = err <= err_margin and slope_ok
-    
+    -- 総合的な安定性フラグ
+    -- local stable = err_ok and slope_ok and stddev_ok
+    local stable = err_ok and stddev_ok
+
+    -- 安定性の判定失敗時には判定バッファをリセット
+    if not stable then
+        flag_buff = {}
+    end
+
     table.insert(flag_buff, stable)
     if #flag_buff > buff_size then
         table.remove(flag_buff, 1)
@@ -147,7 +222,7 @@ function tecstuning(sw)
 
     -- プロポスイッチ ON でスクリプト有効化 (初回限定)
     if sw and not tecstune_running then
-        gcs:send_text(0, string.format("TECS Tune Script Standby (Switch ON)"))
+        gcs:send_text(0, string.format("TECS Tune Switch ON (Script Standby)"))
         tecstune_running = true
         tecstune_stage = 0
     end
@@ -164,7 +239,7 @@ function tecstuning(sw)
             param:set_and_save("LIM_PITCH_MAX", 2500)
             param:set_and_save("TECS_SPDWEIGHT", 1)
             gcs:send_text(0, string.format("TECS Tune Switch OFF"))
-            mission:set_current_cmd(2)
+            --mission:set_current_cmd(2)
         end
         -- sw 管理 (TecsTune Switch OFF で, すべて false)
         tecstune_stage = 0
@@ -176,13 +251,15 @@ function tecstuning(sw)
     -- 加速フェーズ：上昇飛行直前に TRIM_ARSPD 一時的に 25 → 30 m/s とすることで間接的にスロットル率を上昇させる
     if tecstune_stage == 1 then
         local _, arspd_now, _, _, _ = update_sensors()
+        local arspd_limit = set2up_arspd*0.01
         if not trimspd_sw then
-            param:set_and_save("TRIM_ARSPD_CM", 3000)   --トリム速度値を変更
+            param:set_and_save("TRIM_ARSPD_CM", set2up_arspd)   --トリム速度値を変更
             local trim_arspd_now = param:get("TRIM_ARSPD_CM")
             gcs:send_text(6, string.format("Set TRIM_ARSPD to: %d m/s", trim_arspd_now*0.01))
             trimspd_sw = true
         end
-        if trimspd_sw and arspd_now > arspd_max then
+
+        if trimspd_sw and arspd_now > arspd_limit then
             tecstune_stage = 2
         end
     end
@@ -220,42 +297,46 @@ function tecstuning(sw)
         end
         
         -- 上昇中処理 & 速度の監視 (70 ~ 140 m)
-        if climb_sw and height_now >= height_climb_min and throttle_now == thr_max then
+        --if climb_sw and height_now >= height_climb_min and throttle_now >= 99 then
+        if climb_sw and height_now >= height_climb_min then
             local arspd_target = param:get("TRIM_ARSPD_CM") * 0.01
-            
             -- 安定性チェック (速度バッファ・誤差・変化率)
             local arspd_stable = val_stab_check(arspd_now, arspd_target,
-                                          arspd_val_buff, arspd_buff,
-                                          get_climb_rate_sw,
-                                          arspd_margin, arspd_diff_margin)
+                                                arspd_val_buff, arspd_buff,
+                                                get_climb_rate_sw, arspd_margin,
+                                                arspd_diff_margin, arspd_std_margin)
 
             -- 安定性チェック後, 最大上昇率として取得&付随するパラメータの計算及び記録
             if arspd_stable then
                 -- GCS 送信用の生データ
+                local throttle_max = throttle_now
                 local climb_max_rate = dh_now                                       -- 最大上昇率の取得
                 local pitch_max = pitch_deg                                         -- この時の最大ピッチ角
                 local pitch_min = - (pitch_max - 5.0)                               -- 最大ピッチ角に合わせた最小ピッチ角算出
                 local sink_max_rate = arspd_max * math.sin(math.rad(pitch_min))     -- 理論最大降下率算出
                 -- GCS へ結果を送信
-                gcs:send_text(0, string.format("TECS_CLIMB_MAX get to %.2f m/s", climb_max_rate))
-                gcs:send_text(0, string.format("LIM_PITCH_MAX_DEG get to %.2f deg.", pitch_max))
-                gcs:send_text(0, string.format("LIM_PITCH_MIN_DEG get to %.2f deg.", pitch_min))
-                gcs:send_text(0, string.format("TECS_SINK_MAX get to %.2f m/s", sink_max_rate))
+                gcs:send_text(6, string.format("THR_MAX get to %.2f%%", throttle_max))
+                gcs:send_text(6, string.format("TECS_CLIMB_MAX get to %.2f m/s", climb_max_rate))
+                gcs:send_text(6, string.format("LIM_PITCH_MAX_DEG get to %.2f deg.", pitch_max))
+                gcs:send_text(6, string.format("LIM_PITCH_MIN_DEG get to %.2f deg.", pitch_min))
+                gcs:send_text(6, string.format("TECS_SINK_MAX get to %.2f m/s", sink_max_rate))
+                --[[
                 -- パラメータセット用データ (Increment & Range 調整後)
                 local climb_max_rate_IR = math.max(0.1, math.min(math.floor(climb_max_rate*10 + 0.5) / 10))
                 local pitch_max_IR = math.max(0.0, math.min(9000, math.floor(pitch_max / 1.0 + 0.5)*100))
                 local pitch_min_IR = math.max(-9000, math.min(0, math.floor(pitch_min / 1.0 + 0.5)*100))
                 local sink_max_rate_IR = math.max(0.1, math.min(20.0, math.floor(math.abs(sink_max_rate)*10 + 0.5) / 10))
+                ]]--
                 -- 記録テスト
-                param:set_and_save("SCR_USER1", climb_max_rate_IR)
-                param:set_and_save("SCR_USER2", pitch_max_IR)
-                param:set_and_save("SCR_USER3", pitch_min_IR)
-                param:set_and_save("SCR_USER4", sink_max_rate_IR)
+                param:set_and_save("SCR_USER1", climb_max_rate)
+                param:set_and_save("SCR_USER2", pitch_max*100)
+                param:set_and_save("SCR_USER3", pitch_min*100)
+                param:set_and_save("SCR_USER4", math.abs(sink_max_rate))
                 --[[
-                param:set_and_save("TECS_CLMB_MAX", climb_max_rate_IR)
-                param:set_and_save("LIM_PITCH_MAX", pitch_max_IR)
-                param:set_and_save("LIM_PITCH_MIN", pitch_min_IR)
-                param:set_and_save("TECS_SINK_MAX", sink_max_rate_IR)
+                param:set_and_save("TECS_CLMB_MAX", climb_max_rate)
+                param:set_and_save("LIM_PITCH_MAX", pitch_max)
+                param:set_and_save("LIM_PITCH_MIN", pitch_min)
+                param:set_and_save("TECS_SINK_MAX", sink_max_rate)
                 ]]--
 
                 get_climb_rate_sw = true
@@ -266,11 +347,11 @@ function tecstuning(sw)
         end
 
         -- 最大上昇高度に達し強制終了
-        if climb_sw and height_now >= target_alt then
+        if climb_sw and height_now >= target_alt_limit then
             tecstune_stage = 0
             reset_all_flags()
-            --vehicle:set_mode(10)                       -- 勝手にRTLモードになる場合があるため Auto モードを噛ませる
             mission:set_current_cmd(dojump_cmd_num)      -- DO_JUMP コマンドへ移行
+            --vehicle:set_mode(10)                       -- 勝手にRTLモードになる場合があるため Auto モードを噛ませる
             gcs:send_text(0, "Return to Stage 1")
         end
     end
@@ -288,23 +369,23 @@ function tecstuning(sw)
             set_spdw_sw = true
         end
 
-        if set_spdw_sw and not get_sink_min_sw then
+        if set_spdw_sw and not get_sink_min_sw and throttle_now == thr_min then
             -- 安定性チェック (速度バッファ・誤差・変化率)
-            local all_ok = val_stab_check(arspd_now, arspd_target,
-                                          arspd_val_buff, arspd_buff,
-                                          nil,
-                                          arspd_margin, arspd_diff_margin)
+            local arspd_stable = val_stab_check(arspd_now, arspd_target,
+                                                arspd_val_buff, arspd_buff,
+                                                nil, arspd_margin,
+                                                arspd_diff_margin, arspd_std_margin)
 
-            if all_ok and throttle_now == thr_min and dh_now < 0 then
+            if arspd_stable and dh_now < 0 then
                 -- GCS 送信用の生データ
                 local sink_min_rate = dh_now
                 -- GCS へ結果を送信
                 gcs:send_text(0, string.format("TECS_SINK_MIN get to %.2f m/s", sink_min_rate))
                 -- パラメータセット用データ (Increment & Range 調整後)
-                local sink_min_rate_IR = math.max(0.1, math.min(10.0, math.floor(math.abs(sink_min_rate)*10 + 0.5) / 10))
+                --local sink_min_rate_IR = math.max(0.1, math.min(10.0, math.floor(math.abs(sink_min_rate)*10 + 0.5) / 10))
                 -- 記録テスト
-                param:set_and_save("SCR_USER5", sink_min_rate_IR)
-                --param:set_and_save("TECS_SINK_MIN", sink_min_rate_IR)
+                param:set_and_save("SCR_USER5", math.abs(sink_min_rate))
+                --param:set_and_save("TECS_SINK_MIN", sink_min_rate)
                 
                 param:set_and_save("TECS_SPDWEIGHT", 1)
                 gcs:send_text(6, string.format("TECS_SPDWEIGHT set to: %d", param:get("TECS_SPDWEIGHT")))
@@ -324,14 +405,14 @@ function tecstuning(sw)
         -- 速度安定性チェック
         local arspd_stable = val_stab_check(arspd_now, arspd_target,
                                             arspd_val_buff, arspd_buff,
-                                            get_trim_thr_sw,
-                                            arspd_margin, arspd_diff_margin)
+                                            get_trim_thr_sw, arspd_margin,
+                                            arspd_diff_margin, arspd_std_margin)
 
         -- 高度&上昇率安定性チェック (解析的)
         local alt_dh_stable = val_stab_check(height_now, cruise_height,
                                              height_val_buff, height_buff,
-                                             get_trim_thr_sw,
-                                             height_margin, dh_margin)
+                                             get_trim_thr_sw, height_margin,
+                                             dh_margin, height_std_margin)
 
         if not get_trim_thr_sw
             and arspd_stable
@@ -343,10 +424,10 @@ function tecstuning(sw)
             -- GCS へ結果を送信
             gcs:send_text(0, string.format("TRIM_THROTTLE get to %.2f%%", trim_throttle))
             -- パラメータセット用データ (Increment & Range 調整後)
-            local trim_throttle_IR = math.max(0, math.min(100, math.floor(trim_throttle + 0.5)))
+            --local trim_throttle_IR = math.max(0, math.min(100, math.floor(trim_throttle + 0.5)))
             -- 記録テスト
-            param:set_and_save("SCR_USER6", trim_throttle_IR)
-            --param:set_and_save("TRIM_THROTTLE", trim_throttle_IR)
+            param:set_and_save("SCR_USER6", trim_throttle)
+            --param:set_and_save("TRIM_THROTTLE", trim_throttle)
             
             gcs:send_text(0, string.format("Finished TecsTune"))
             get_trim_thr_sw = true
@@ -361,7 +442,8 @@ function update()
     local mode = vehicle:get_mode()
     if mode == 10 and scripting_rc then
         local sw_pos = scripting_rc:get_aux_switch_pos()
-        if sw_pos == 1 then 
+        if sw_pos == 1 then
+            vehicle:set_mode(10)
             tecstuning(true)
         else
             tecstuning(false)

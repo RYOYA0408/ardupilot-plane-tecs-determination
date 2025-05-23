@@ -542,11 +542,9 @@ void AP_TECS::_update_height_demand(void)
         if ((hgt_dem - _hgt_dem_rate_ltd) > (_climb_rate_limit * _DT)) {
             _hgt_dem_rate_ltd = _hgt_dem_rate_ltd + _climb_rate_limit * _DT;
             _sink_fraction = 0.0f;
-	    printf("AP_TECS.cpp_001: hgt_dem_rate_ltd = %f, hgt_dem_rate_ltd = %f, climb_rate_limit = %f\n", _hgt_dem_rate_ltd, _hgt_dem_rate_ltd, _climb_rate_limit);
         } else if ((hgt_dem - _hgt_dem_rate_ltd) < (-_sink_rate_limit * _DT)) {
             _hgt_dem_rate_ltd = _hgt_dem_rate_ltd - _sink_rate_limit * _DT;
             _sink_fraction = 1.0f;
-	    printf("AP_TECS.cpp_002: hgt_dem_rate_ltd = %f, sink_rate_limit = %f\n", _hgt_dem_rate_ltd, _sink_rate_limit);
         } else {
             const float numerator = hgt_dem - _hgt_dem_rate_ltd;
             const float denominator = - _sink_rate_limit * _DT;
@@ -556,7 +554,6 @@ void AP_TECS::_update_height_demand(void)
                 _sink_fraction = 0.0f;
             }
             _hgt_dem_rate_ltd = hgt_dem;
-	    printf("AP_TECS.cpp_003: hgt_dem_rate_ltd = %f, hgt_dem = %f, sink_rate_limit = %f, sink_fraction = %f\n", _hgt_dem_rate_ltd, _hgt_dem, _sink_rate_limit, _sink_fraction);
         }
 
         // Apply a first order lag to height demand and compensate for lag when commencing height
@@ -564,7 +561,6 @@ void AP_TECS::_update_height_demand(void)
         // compensation offset is decayed using the same time constant as the height demand filter.
         const float coef = MIN(_DT / (_DT + MAX(_hgt_dem_tconst, _DT)), 1.0f);
         _hgt_rate_dem = (_hgt_dem_rate_ltd - _hgt_dem_lpf) / _hgt_dem_tconst;
-	printf("AP_TECS.cpp_004: hgt_rate_dem = %f, hgt_dem_rate_ltd = %f, hgt_dem_lpf = %f, hgt_dem_tconst = %f\n", _hgt_rate_dem, _hgt_dem_rate_ltd, _hgt_dem_lpf, (float)_hgt_dem_tconst);
         _hgt_dem_lpf = _hgt_dem_rate_ltd * coef + (1.0f - coef) * _hgt_dem_lpf;
         _post_TO_hgt_offset *= (1.0f - coef);
         _hgt_dem = _hgt_dem_lpf + _post_TO_hgt_offset;
@@ -1121,7 +1117,6 @@ void AP_TECS::_initialise_states(float hgt_afe)
     _flags.reset = false;
 
     if (_DT > 0.2f || _need_reset) {
-	printf("TECS is reset. _DT = %f, _need_reset = %d\n", _DT, _need_reset);
         _SKE_weighting        = 1.0f;
  //       _integTHR_state       = 0.0f;
         _integSEBdot          = 0.0f;

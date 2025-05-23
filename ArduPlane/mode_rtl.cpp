@@ -117,7 +117,6 @@ void ModeRTL::navigate()
 
             // prevent running the expensive jump_to_landing_sequence
             // on every loop
-            printf("target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
             plane.auto_state.checked_for_autoland = true;
         }
     }

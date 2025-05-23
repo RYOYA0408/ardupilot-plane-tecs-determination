@@ -54,25 +54,20 @@ void Plane::setup_glide_slope(void)
     if (auto_state.checked_for_autoland && reached_loiter_target()) {
         float sum_cd = fabs((float)loiter.sum_cd);
         auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
-	printf("altitude.cpp_001: wp_proportion = %f\n", auto_state.wp_proportion);
     } else if (auto_state.tp_crosstrack) {
         if (auto_state.tp_circle_mode && loiter.total_cd != 0) {
             float sum_cd = fabs((float)loiter.sum_cd);
             auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
-	    printf("altitude.cpp_002: wp_proportion = %f\n", auto_state.wp_proportion);
         } else {
             auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
             auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, flex_next_WP_loc);
-	    printf("altitude.cpp_003: wp_proportion = %f\n", auto_state.wp_proportion);
         }
     } else if (auto_state.crosstrack && auto_state.checked_for_autoland) {
 	auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
 	auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, flex_next_WP_loc);
-	printf("altitude.cpp_004: wp_proportion = %f\n", auto_state.wp_proportion);
     } else {
         auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
         auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
-	printf("altitude.cpp_005: wp_proportion = %f\n", auto_state.wp_proportion);
     }
     if (fabs(wp_proportion_prev) < 1e-6 && auto_state.wp_proportion < 0.) {
         auto_state.wp_proportion_offset = -auto_state.wp_proportion;
@@ -97,7 +92,6 @@ void Plane::setup_glide_slope(void)
         */
         if (above_location_current(next_WP_loc)) {
             set_offset_altitude_location(prev_WP_loc, next_WP_loc);
-	    printf("altitude.cpp_006: prev_WP_loc.alt = %d, next_WP_loc.alt = %d\n", prev_WP_loc.alt, next_WP_loc.alt);
         } else {
             reset_offset_altitude();
         }
@@ -119,7 +113,6 @@ void Plane::setup_glide_slope(void)
         if (adjusted_relative_altitude_cm() > 2000 || above_location_current(next_WP_loc)) {
 //            set_offset_altitude_location(prev_WP_loc, next_WP_loc);
 //	    flex_next_WP_loc = next_WP_loc;
-//	    printf("altitude.cpp_007: prev_WP_loc.alt = %d, next_WP_loc.alt = %d\n", prev_WP_loc.alt, next_WP_loc.alt);
         } else {
 //            reset_offset_altitude();
         }
@@ -336,7 +329,6 @@ void Plane::change_target_altitude(int32_t change_cm)
 void Plane::set_target_altitude_proportion(const Location &loc, float proportion)
 {
     set_target_altitude_location(loc);
-    printf("altitude.cpp_008: loc.alt = %d, proportion = %f, offset_cm = %d\n", loc.alt, proportion, target_altitude.offset_cm);
     proportion = constrain_float(proportion, 0.0f, 1.0f);
     change_target_altitude(-target_altitude.offset_cm*proportion);
     //rebuild the glide slope if we are above it and supposed to be climbing

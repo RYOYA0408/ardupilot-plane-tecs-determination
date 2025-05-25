@@ -66,11 +66,11 @@ local dh_target = 0.0                                       -- 目標巡航上�
 
 -- AIRSPEED_MIN(ARSPD_FBW_MIN) 決定フェーズの
 -- タイムアウト設定 & 減速速度テーブルリスト
-local decel_timeout = 25
+local decel_timeout = 20
 local decel_start_ts = 0.0
 local decel_cnt = 0
 local decel_arspd_max = 20
-local decel_arspd_min = 5
+local decel_arspd_min = 10
 local decel_arspd_table = {}
 -- テーブル生成
 for d = decel_arspd_max, decel_arspd_min, -1 do
@@ -91,7 +91,7 @@ for a = accel_arspd_min, accel_arspd_max, 1 do
 end
 
 -- AIRSPEED_MIN/MAX 時の閾値調整
-local arspd_offset = 0.5
+local arspd_offset = 0.4
 
 -- 上昇フェーズの高度目標値
 local target_alt = 150                     -- 目標上昇高度
@@ -148,7 +148,6 @@ function reset_all_param()
     param:set_and_save("TECS_SPDWEIGHT", 1)
     param:set_and_save("TECS_OPTIONS", 0)
     -- 以下, 自動決定する主要 TECS 関連パラメータ (デバックのためリセット)
-    --[[
     param:set_and_save("THR_MAX", 100)
     param:set_and_save("TRIM_THROTTLE", 65)
     param:set_and_save("ARSPD_FBW_MAX", 30)
@@ -159,7 +158,6 @@ function reset_all_param()
     param:set_and_save("TECS_SINK_MIN", 2)
     param:set_and_save("TECS_SINK_MAX", 5)
     param:set_and_save("TECS_RLL2THR", 0)
-    ]]--
 end
 
 -- フラグ一括リセット関数
@@ -453,7 +451,7 @@ function tecstuning(sw)
     -- ARISPEED_MAX(ARSPD_FBW_MAX) 決定フェーズ
     if tecstune_phase == 2 then
         -- 必要状態量取得
-        local pitch_deg, arspd_now, accel_x_now, dh_now, height_now, _ = update_sensors()
+        local pitch_deg, arspd_now, accel_x_now, dh_now, height_now, throttle_now = update_sensors()
         -- 減速回数に応じた目標速度値をテーブルから取り出す
         local arspd_cmd = accel_arspd_table[math.min(accel_cnt + 1, #accel_arspd_table)]
         
@@ -518,7 +516,7 @@ function tecstuning(sw)
             end
 
             -- 任意時間以上, 定常性を確保できなかった場合, ARSPD_FBW_MAX を決定
-            if accel_time >= accel_timeout then
+            if accel_time >= accel_timeout and throttle_now >= 85 then
                 -- "1つ前のインデックス"のトリム速度設定値を FBW_MAX と決定
                 local fbw_max_idx = math.max(1, accel_cnt - 1)
                 local fbw_max = accel_arspd_table[fbw_max_idx]
@@ -770,10 +768,14 @@ function tecstuning(sw)
             gcs:send_text(0, string.format("TRIM_THROTTLE get to %.2f%%", trim_throttle))
             -- スロットル率は int で保存 (切り上げして安全側へ)
             param:set_and_save("TRIM_THROTTLE", math.floor(trim_throttle + 0.5))
-            tecstune_phase = 6.5
+            mission:set_current_cmd(def_turnp_num) -- 通常周回モードへ復帰
+                
+            gcs:send_text(0, string.format("Finished TecsTune"))
+            tecstune_phase = 0
+            --tecstune_phase = 6.5
         end
     end
-
+    --[[
     -- TECS_RLL2THR 決定
     if tecstune_phase == 7 then
         local _, _, _, dh_now, _, _ = update_sensors()
@@ -826,9 +828,9 @@ function tecstuning(sw)
                 tecstune_phase = 6.5
                 gcs:send_text(0, string.format("Retry Phase 7"))
             end
-
         end
     end
+    ]]--
 end
 
 function update()

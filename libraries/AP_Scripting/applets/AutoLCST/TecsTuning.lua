@@ -31,7 +31,7 @@ local FREQUENCY = 10             -- コードのサンプリング周波数(ms)
 local dt = FREQUENCY / 1000      -- 定常性評価時の刻み幅
 local dt_log = 0.02              -- UAV Log Viewer のログ周期
 local obs_fbw_time = 5.0         -- AIRSPEED_MIN/MAX, TECS_SINK_MIN 観測時間
-local obs_climb_time = 4.8       -- 上昇フェーズ観測時間
+local obs_climb_time = 4.7       -- 上昇フェーズ観測時間
 local obs_rll2_time = 3.0        -- RLL2_THR 観測時間
 
 -- Phase 毎に定常性評価バッファーを初期化する際の変数宣言
@@ -333,6 +333,7 @@ function tecstuning(sw)
                     tecstune_phase = 3
                     gcs:send_text(6, "Start Acceleration (Phase 3)")
                 else
+                    gcs:send_text(6, "Over speed")
                     gcs:send_text(6, "Phase 3 Abort, Wait for next lap")
                 end
             end
@@ -363,7 +364,7 @@ function tecstuning(sw)
     -- ARISPEED_MIN(ARSPD_FBW_MIN) 決定フェーズ
     if tecstune_phase == 1 then
         -- 必要状態量取得
-        local pitch_deg, arspd_now, accel_x_now, dh_now, height_now, _ = update_sensors()
+        local pitch_deg, arspd_now, accel_x_now, dh_now, height_now, throttle_now = update_sensors()
         -- 減速回数に応じた目標速度値をテーブルから取り出す
         local arspd_cmd = decel_arspd_table[math.min(decel_cnt + 1, #decel_arspd_table)]
         
@@ -423,15 +424,16 @@ function tecstuning(sw)
             
             -- 要求速度で水平定常飛行を達成できた場合, 現在の要求速度より - 1 m/s してループ
             -- もしくは目標速度に一定程度近づいた場合, 上記と同様の処理
-            if (arspd_now < (arspd_target + arspd_offset) or arspd_stable) and
-               accel_x_stable and dh_stable and alt_stable then
-                gcs:send_text(0, string.format("Retry Phase 1"))
+            --if (arspd_now < (arspd_target + arspd_offset) or arspd_stable) and
+               --accel_x_stable and dh_stable and alt_stable then
+            if arspd_stable and accel_x_stable and dh_stable and alt_stable then 
+            gcs:send_text(0, string.format("Retry Phase 1"))
                 decel_time = 0  -- 記録時間を初期化
                 deceleration_sw = false
             end
 
             -- 任意時間以上, 定常性を確保できなかった場合, ARSPD_FBW_MIN を決定
-            if decel_time >= decel_timeout then
+            if decel_time >= decel_timeout and throttle_now <= 20 then
                 -- "現在のインデックス"のトリム速度設定値に対して 20 % 大きい値を FBW_MIN と決定
                 local fbw_min_idx = math.max(1, decel_cnt - 1)
                 local fbw_min = decel_arspd_table[fbw_min_idx] * 1.20
@@ -508,8 +510,9 @@ function tecstuning(sw)
             
             -- 要求速度で水平定常飛行を達成できた場合, 現在の要求速度より - 1 m/s してループ
             -- もしくは目標速度に一定程度近づいた場合, 上記と同様の処理
-            if (arspd_now >= (arspd_target - 0.5) or arspd_stable) and
-               accel_x_stable and dh_stable and alt_stable then
+            --if (arspd_now >= (arspd_target - 0.5) or arspd_stable) and
+               --accel_x_stable and dh_stable and alt_stable then
+            if arspd_stable and accel_x_stable and dh_stable and alt_stable then
                 gcs:send_text(0, string.format("Retry Phase 2"))
                 accel_time = 0
                 acceleration_sw = false
@@ -768,8 +771,8 @@ function tecstuning(sw)
             gcs:send_text(0, string.format("TRIM_THROTTLE get to %.2f%%", trim_throttle))
             -- スロットル率は int で保存 (切り上げして安全側へ)
             param:set_and_save("TRIM_THROTTLE", math.floor(trim_throttle + 0.5))
-            mission:set_current_cmd(def_turnp_num) -- 通常周回モードへ復帰
-                
+            --mission:set_current_cmd(def_turnp_num) -- 通常周回モードへ復帰
+            mission:set_current_cmd(dojump_aft_cmd_num) -- 通常周回モードへ復帰
             gcs:send_text(0, string.format("Finished TecsTune"))
             tecstune_phase = 0
             --tecstune_phase = 6.5

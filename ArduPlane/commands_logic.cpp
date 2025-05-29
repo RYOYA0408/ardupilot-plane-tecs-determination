@@ -795,6 +795,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
                 ) ;
             }
             // 接点 flex_prev_WP_loc まで円周上を飛行する
+            loiter.direction = -prev_WP_direction;
             nav_controller->update_loiter(prev_WP_loc, prev_WP_radius, -prev_WP_direction, false);
         }
     // Turning point 周回経路に乗っていない

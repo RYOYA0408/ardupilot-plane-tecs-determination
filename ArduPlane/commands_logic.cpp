@@ -151,6 +151,9 @@ bool Plane::start_command(const AP_Mission::Mission_Command& cmd)
     // system to control the vehicle attitude and the attitude of various
     // devices such as cameras.
     //    |Region of interest mode. (see MAV_ROI enum)| Waypoint index/ target ID. (see MAV_ROI enum)| ROI index (allows a vehicle to manage multiple cameras etc.)| Empty| x the location of the fixed ROI (see MAV_FRAME)| y| z|
+    // ROI_NONE can be handled by the regular ROI handler because lat, lon, alt are always zero
+    case MAV_CMD_DO_SET_ROI_LOCATION:
+    case MAV_CMD_DO_SET_ROI_NONE:
     case MAV_CMD_DO_SET_ROI:
         if (cmd.content.location.alt == 0 && cmd.content.location.lat == 0 && cmd.content.location.lng == 0) {
             // switch off the camera tracking if enabled
@@ -308,6 +311,8 @@ bool Plane::verify_command(const AP_Mission::Mission_Command& cmd)        // Ret
     case MAV_CMD_DO_FENCE_ENABLE:
     case MAV_CMD_DO_AUTOTUNE_ENABLE:
     case MAV_CMD_DO_SET_CAM_TRIGG_DIST:
+    case MAV_CMD_DO_SET_ROI_LOCATION:
+    case MAV_CMD_DO_SET_ROI_NONE:
     case MAV_CMD_DO_SET_ROI:
     case MAV_CMD_DO_MOUNT_CONTROL:
     case MAV_CMD_DO_VTOL_TRANSITION:
@@ -333,6 +338,9 @@ void Plane::do_RTL(int32_t rtl_altitude_AMSL_cm)
     prev_WP_loc = current_loc;
     flex_prev_WP_loc = current_loc;
     next_WP_loc = calc_best_rally_or_home_location(current_loc, rtl_altitude_AMSL_cm);
+
+    fix_terrain_WP(next_WP_loc, __LINE__);
+
     setup_terrain_target_alt(next_WP_loc);
     set_target_altitude_location(next_WP_loc);
 
@@ -377,6 +385,7 @@ void Plane::do_takeoff(const AP_Mission::Mission_Command& cmd)
     next_WP_loc.lng = home.lng + 10;
     auto_state.takeoff_speed_time_ms = 0;
     auto_state.takeoff_complete = false; // set flag to use gps ground course during TO. IMU will be doing yaw drift correction.
+    auto_state.rotation_complete = false;
     auto_state.height_below_takeoff_to_level_off_cm = 0;
     // Flag also used to override "on the ground" throttle disable
 
@@ -496,7 +505,17 @@ void Plane::do_continue_and_change_alt(const AP_Mission::Mission_Command& cmd)
         next_WP_loc.offset_bearing(bearing, 1000); // push it out 1km
     }
 
-    next_WP_loc.alt = cmd.content.location.alt + home.alt;
+    if (cmd.content.location.get_alt_frame() == Location::AltFrame::ABOVE_TERRAIN) {
+        next_WP_loc.set_alt_cm(cmd.content.location.alt,
+                               Location::AltFrame::ABOVE_TERRAIN);
+    } else {
+        int32_t alt_abs_cm;
+        // if this fails we don't change alt
+        if (cmd.content.location.get_alt_cm(Location::AltFrame::ABSOLUTE, alt_abs_cm)) {
+            next_WP_loc.set_alt_cm(alt_abs_cm,
+                                   Location::AltFrame::ABSOLUTE);
+        }
+    }
     condition_value = cmd.p1;
     reset_offset_altitude();
 }
@@ -590,7 +609,10 @@ bool Plane::verify_takeoff()
 
     // see if we have reached takeoff altitude
     int32_t relative_alt_cm = adjusted_relative_altitude_cm();
-    if (relative_alt_cm > auto_state.takeoff_altitude_rel_cm) {
+    if (
+        relative_alt_cm > auto_state.takeoff_altitude_rel_cm || // altitude reached
+        plane.check_takeoff_timeout_level_off() // pitch level-off maneuver has timed out
+        ) {
         gcs().send_text(MAV_SEVERITY_INFO, "Takeoff complete at %.2fm",
                           (double)(relative_alt_cm*0.01f));
         steer_state.hold_course_cd = -1;
@@ -651,7 +673,6 @@ bool Plane::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
             const float h = (A-B)/MAX(A, 1)*H;
             flex_next_WP_loc.set_alt_cm(h*100, Location::AltFrame::ABSOLUTE);
             set_offset_altitude_location(prev_WP_loc, flex_next_WP_loc);
-	    printf("commands_logic.cpp_001: prev_WP_loc.alt = %d, flex_next_WP_loc.alt = %d\n", prev_WP_loc.alt, flex_next_WP_loc.alt);
         }
         nav_controller->update_waypoint(prev_WP_loc, flex_next_WP_loc);
     } else {
@@ -774,6 +795,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
                 ) ;
             }
             // 接点 flex_prev_WP_loc まで円周上を飛行する
+            loiter.direction = -prev_WP_direction;
             nav_controller->update_loiter(prev_WP_loc, prev_WP_radius, -prev_WP_direction, false);
         }
     // Turning point 周回経路に乗っていない
@@ -806,9 +828,8 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float B = auto_state.rtl_land_seq_lastwp_distance + P.get_distance(flex_next_WP_loc);
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
-            flex_next_WP_loc.alt = h*100 + home.alt;
+            flex_next_WP_loc.alt = h*100 + auto_state.rtl_land_seq_last_wp.alt;
             set_offset_altitude_location(P, flex_next_WP_loc);
-	    printf("commands_logic.cpp_002: P.alt = %d, flex_next_WP_loc.alt = %d\n", P.alt, flex_next_WP_loc.alt);
          }
         float acceptance_distance_m = 0.5*L1_controller.get_L1_dist();
         const float tp_dist = current_loc.get_distance(flex_next_WP_loc);
@@ -821,6 +842,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             }
             auto_state.tp_circle_mode = cmd.get_loiter_turns() + 1;
             loiter.start_point = flex_next_WP_loc;
+	    loiter.start_point.alt = target_altitude.amsl_cm;
             return true;
         }
 
@@ -834,6 +856,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             }
             auto_state.tp_circle_mode = cmd.get_loiter_turns() + 1;
             loiter.start_point = flex_next_WP_loc;
+	    loiter.start_point.alt = target_altitude.amsl_cm;
             return true;
         }
     // Turning point 円周上を飛行中
@@ -853,12 +876,11 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
             float h = (A-B)/MAX(A, 1)*H;
 //            flex_prev_WP_loc.alt = h*100 + home.alt;
-            flex_prev_WP_loc.set_alt_cm(h*100 + home.alt, Location::AltFrame::ABSOLUTE);
+            flex_prev_WP_loc.alt = h*100 + auto_state.rtl_land_seq_last_wp.alt;
             if (flex_prev_WP_loc.alt < auto_state.rtl_land_seq_last_wp.alt) {
                 flex_prev_WP_loc.alt = auto_state.rtl_land_seq_last_wp.alt;
             }
             set_offset_altitude_location(loiter.start_point, flex_prev_WP_loc);
-	    printf("commands_logic.cpp_003: loiter.start_point.alt = %d, flex_prev_WP_loc.alt = %d\n", loiter.start_point.alt, flex_prev_WP_loc.alt);
         }
         bool c1 = fabs(loiter.sum_cd / 100.0) > loiter.total_cd / 100.0 - 0.2;         // 旋回角度が旋回すべき角度-5度を超えたかどうか
         float acceptance_distance_m = L1_controller.get_L1_dist();

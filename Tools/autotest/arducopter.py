@@ -10258,14 +10258,18 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             raise ex
 
     def ATTITUDE_FAST(self):
-        '''ensure that when ATTITDE_FAST is set we get many messages'''
+        '''ensure that when ATTITUDE_FAST is set we get many messages'''
         self.context_push()
         ex = None
         try:
-            old = self.get_parameter('LOG_BITMASK')
-            new = int(old) | (1 << 0)  # see defines.h
+            log_bitmask_old = int(self.get_parameter('LOG_BITMASK'))
+
+            # enable fast logging (bit 1)
+            # disable PID logging (bit 12) to avoid slowdowns in attitude logging in SITL
+            log_bitmask_new = (log_bitmask_old | (1 << 0)) & ~(1 << 12)
+
             self.set_parameters({
-                "LOG_BITMASK": new,
+                "LOG_BITMASK": log_bitmask_new,
                 "LOG_DISARMED": 1,
                 "LOG_DARM_RATEMAX": 0,
                 "LOG_FILE_RATEMAX": 0,
@@ -11990,12 +11994,12 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.set_rc(1, 1200)
         self.delay_sim_time(1)  # build up some pilot desired stuff
         self.change_mode('AUTO')
-        self.wait_waypoint(2, 2)
+        self.wait_waypoint(2, 2, max_dist=3)
         self.set_parameters({
             'SIM_RC_FAIL': 1,
         })
 #        self.set_rc(1, 1500)  # note we are still in RC fail!
-        self.wait_waypoint(3, 3)
+        self.wait_waypoint(3, 3, max_dist=3)
         self.assert_mode_is('AUTO')
         self.change_mode('LOITER')
         self.wait_groundspeed(0, 0.1, minimum_duration=30, timeout=450)

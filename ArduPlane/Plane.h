@@ -455,7 +455,7 @@ private:
         float throttle_lim_max;
         float throttle_lim_min;
         uint32_t throttle_max_timer_ms;
-        // Good candidate for keeping the initial time for TKOFF_THR_MAX_T.
+        uint32_t level_off_start_time_ms;
     } takeoff_state;
 
     // ground steering controller state
@@ -583,6 +583,8 @@ private:
 
         // 着陸地点
         Location rtl_landing_point;
+        // have we finished the takeoff ratation (when it applies)?
+        bool rotation_complete;
     } auto_state;
 
 #if AP_SCRIPTING_ENABLED
@@ -939,6 +941,9 @@ private:
     int32_t relative_target_altitude_cm(void);
     void change_target_altitude(int32_t change_cm);
     void set_target_altitude_proportion(const Location &loc, float proportion);
+#if AP_TERRAIN_AVAILABLE
+    bool set_target_altitude_proportion_terrain(void);
+#endif
     void constrain_target_altitude_location(const Location &loc1, const Location &loc2);
     int32_t calc_altitude_error_cm(void);
     void check_fbwb_altitude(void);
@@ -951,6 +956,7 @@ private:
     float mission_alt_offset(void);
     float height_above_target(void);
     float lookahead_adjustment(void);
+    void fix_terrain_WP(Location &loc, uint32_t linenum);
 #if AP_RANGEFINDER_ENABLED
     float rangefinder_correction(void);
     void rangefinder_height_update(void);
@@ -1190,6 +1196,7 @@ private:
     int16_t get_takeoff_pitch_min_cd(void);
     void landing_gear_update(void);
     bool check_takeoff_timeout(void);
+    bool check_takeoff_timeout_level_off(void);
 
     // avoidance_adsb.cpp
     void avoidance_adsb_update(void);
@@ -1201,7 +1208,6 @@ private:
     void set_takeoff_expected(void);
     void set_servos_old_elevons(void);
     void set_servos_flaps(void);
-    void set_landing_gear(void);
     void dspoiler_update(void);
     void airbrake_update(void);
     void landing_neutral_control_surface_servos(void);

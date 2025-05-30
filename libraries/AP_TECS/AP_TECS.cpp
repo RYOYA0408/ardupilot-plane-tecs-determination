@@ -561,7 +561,6 @@ void AP_TECS::_update_height_demand(void)
         // compensation offset is decayed using the same time constant as the height demand filter.
         const float coef = MIN(_DT / (_DT + MAX(_hgt_dem_tconst, _DT)), 1.0f);
         _hgt_rate_dem = (_hgt_dem_rate_ltd - _hgt_dem_lpf) / _hgt_dem_tconst;
-	printf("AP_TECS.cpp: hgt_rate_dem = %f, hgt_dem_rate_ltd = %f, hgt_dem_lpf = %f, hgt_dem_tconst = %f\n", _hgt_rate_dem, _hgt_dem_rate_ltd, _hgt_dem_lpf, (float)_hgt_dem_tconst);
         _hgt_dem_lpf = _hgt_dem_rate_ltd * coef + (1.0f - coef) * _hgt_dem_lpf;
         _post_TO_hgt_offset *= (1.0f - coef);
         _hgt_dem = _hgt_dem_lpf + _post_TO_hgt_offset;
@@ -1118,17 +1117,16 @@ void AP_TECS::_initialise_states(float hgt_afe)
     _flags.reset = false;
 
     if (_DT > 0.2f || _need_reset) {
-	printf("TECS is reset. _DT = %f, _need_reset = %d\n", _DT, _need_reset);
         _SKE_weighting        = 1.0f;
-        _integTHR_state       = 0.0f;
+ //       _integTHR_state       = 0.0f;
         _integSEBdot          = 0.0f;
         _integKE              = 0.0f;
-        _last_throttle_dem    = aparm.throttle_cruise * 0.01f;
+ //       _last_throttle_dem    = aparm.throttle_cruise * 0.01f;
         _last_pitch_dem       = _ahrs.get_pitch();
-        _hgt_dem_in_prev      = hgt_afe;
-        _hgt_dem_lpf          = hgt_afe;
-        _hgt_dem_rate_ltd     = hgt_afe;
-        _hgt_dem_prev         = hgt_afe;
+//        _hgt_dem_in_prev      = hgt_afe;
+//        _hgt_dem_lpf          = hgt_afe;
+//        _hgt_dem_rate_ltd     = hgt_afe;
+//        _hgt_dem_prev         = hgt_afe;
         _flags.reset          = true;
         _DT                   = 0.02f; // when first starting TECS, use the most likely time constant
         _lag_comp_hgt_offset  = 0.0f;
@@ -1249,9 +1247,9 @@ void AP_TECS::update_pitch_throttle(int32_t hgt_dem_cm,
                                     !(_flight_stage == AP_FixedWing::FlightStage::TAKEOFF || _flight_stage == AP_FixedWing::FlightStage::ABORT_LANDING);
     const bool max_descent_condition = _pitch_dem_unc < _PITCHminf || _thr_clip_status == clipStatus::MIN;
     if (max_climb_condition && _hgt_dem_in_raw > _hgt_dem_in_prev) {
-        _hgt_dem_in = _hgt_dem_in_prev;
+        _hgt_dem_in = _hgt_dem_in_raw;
     } else if (max_descent_condition && _hgt_dem_in_raw < _hgt_dem_in_prev) {
-        _hgt_dem_in = _hgt_dem_in_prev;
+        _hgt_dem_in = _hgt_dem_in_raw;
     } else {
         _hgt_dem_in = _hgt_dem_in_raw;
     }

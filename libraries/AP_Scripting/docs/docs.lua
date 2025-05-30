@@ -3998,3 +3998,15 @@ function visual_odom:healthy() end
 -- visual odometry quality as a percentage from 1 to 100 or 0 if unknown
 ---@return integer
 function visual_odom:quality() end
+
+-- simulator specific bindings
+sim = {}
+
+-- set pose of simulated vehicle. Requires AHRS_EKF_TYPE=10
+---@param instance integer -- 0 for first vehicle
+---@param loc Location_ud
+---@param orient Quaternion_ud
+---@param velocity_bf Vector3f_ud -- body frame velocity
+---@param gyro_rads Vector3f_ud -- gyro body rate in rad/s
+---@return boolean
+function sim:set_pose(instance, loc, orient, velocity_bf, gyro_rads) end

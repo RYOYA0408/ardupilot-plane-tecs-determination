@@ -51,6 +51,17 @@ void Plane::fence_check()
                 // No returning to a previous mode, unless our action allows it
                 break;
         }
+
+        /*
+          clear mode reasons if they are FENCE_BREACHED to allow AUX
+          switch fence disable/enable to re-enable the fence after a breach
+         */
+        if (plane.previous_mode_reason == ModeReason::FENCE_BREACHED) {
+            plane.previous_mode_reason = ModeReason::FENCE_REENABLE;
+        }
+        if (plane.control_mode_reason == ModeReason::FENCE_BREACHED) {
+            plane.control_mode_reason = ModeReason::FENCE_REENABLE;
+        }
         return;
     }
 
@@ -103,14 +114,17 @@ void Plane::fence_check()
                 //return to fence return point, not a rally point
                 if (fence.get_return_altitude() > 0) {
                     // fly to the return point using _retalt
-                    loc.alt = home.alt + 100.0f * fence.get_return_altitude();
+                    loc.set_alt_cm(home.alt + 100.0 * fence.get_return_altitude(),
+                                   Location::AltFrame::ABSOLUTE);
                 } else if (fence.get_safe_alt_min() >= fence.get_safe_alt_max()) {
                     // invalid min/max, use RTL_altitude
-                    loc.alt = home.alt + g.RTL_altitude*100;
+                    loc.set_alt_cm(home.alt + g.RTL_altitude*100,
+                                   Location::AltFrame::ABSOLUTE);
                 } else {
                     // fly to the return point, with an altitude half way between
                     // min and max
-                    loc.alt = home.alt + 100.0f * (fence.get_safe_alt_min() + fence.get_safe_alt_max()) / 2;
+                    loc.set_alt_cm(home.alt + 100.0f * (fence.get_safe_alt_min() + fence.get_safe_alt_max()) / 2,
+                                   Location::AltFrame::ABSOLUTE);
                 }
 
                 Vector2l return_point;
@@ -160,6 +174,11 @@ bool Plane::fence_stickmixing(void) const
 
 bool Plane::in_fence_recovery() const
 {
+    if (control_mode == &mode_auto && !mission.get_in_landing_sequence_flag()) {
+        // the user may have changed target WP to be outside the
+        // landing sequence
+        return false;
+    }
     const bool current_mode_breach = plane.control_mode_reason == ModeReason::FENCE_BREACHED;
     const bool previous_mode_breach = plane.previous_mode_reason ==  ModeReason::FENCE_BREACHED;
     const bool previous_mode_complete = (plane.control_mode_reason == ModeReason::RTL_COMPLETE_SWITCHING_TO_VTOL_LAND_RTL) ||

@@ -1016,7 +1016,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
 
         self.fly_home_land_and_disarm(timeout=240)
 
-    def fly_home_land_and_disarm(self, timeout=120):
+    def fly_home_land_and_disarm(self, timeout=180):
         filename = "flaps.txt"
         self.progress("Using %s to fly home" % filename)
         self.load_generic_mission(filename)
@@ -2875,6 +2875,66 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         self.fly_mission_waypoints(num_wp-1, mission_timeout=600)
 
         if max_alt < 200:
+            raise NotAchievedException("Did not follow terrain")
+
+    def TerrainMissionInterrupt(self):
+        '''Test terrain following when resuming a mission'''
+        self.install_terrain_handlers_context()
+
+        self.load_mission("ap-terrain.txt")
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # Keep track of the maximum terrain alt.
+        global max_terrain_alt
+        max_terrain_alt = 0
+
+        def record_maxalt(mav, m):
+            global max_terrain_alt
+            if m.get_type() != 'TERRAIN_REPORT':
+                return
+            if m.current_height > max_terrain_alt:
+                max_terrain_alt = m.current_height
+
+        self.context_push()
+
+        self.set_parameter("WP_RADIUS", 100)  # Ensure the aircraft will get within 100.0m of the waypoint.
+
+        # Start the mission.
+        self.set_current_waypoint(0, check_afterwards=False)
+        self.change_mode('AUTO')
+
+        # After waypoint 2, go to GUIDED.
+        self.wait_waypoint(3, 3, max_dist=3150, timeout=600)
+        self.progress("Entering guided and flying somewhere constant")
+        self.change_mode("GUIDED")
+        loc = self.mav.location()
+        self.location_offset_ne(loc, 350, 0)
+        new_alt = 290
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            p5=int(loc.lat * 1e7),
+            p6=int(loc.lng * 1e7),
+            p7=new_alt,  # alt
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        )
+
+        # Resume auto when we are close to the GUIDED waypoint and start tracking maximum terrain alt.
+        self.wait_location(loc, accuracy=100)  # based on loiter radius
+        self.change_mode('AUTO')
+        self.install_message_hook_context(record_maxalt)
+
+        self.wait_waypoint(3, 3, max_dist=100, timeout=600)
+
+        self.context_pop()
+
+        # We've flown enough.
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+
+        # self.fly_mission_waypoints(num_wp-1, mission_timeout=600)
+        if max_terrain_alt > 120:
             raise NotAchievedException("Did not follow terrain")
 
     def Terrain(self):
@@ -4889,6 +4949,9 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
 
         self.set_parameters({
             "TKOFF_ROTATE_SPD": 15.0,
+            "TKOFF_PLIM_SEC": 0,  # Ensure TKOFF_PLIM_SEC doesn't interfere with the test.
+            "TKOFF_DIST": 500,  # Ensure stall prevention doesn't interfere with the test.
+            "TKOFF_ALT": 100  # Ditto
         })
         self.change_mode("TAKEOFF")
 
@@ -4903,11 +4966,83 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             raise NotAchievedException(f"Did not achieve correct takeoff pitch ({nav_pitch}).")
 
         # Check whether we've achieved correct target pitch after rotation.
-        self.wait_groundspeed(23, 24)
+        self.wait_groundspeed(24, 25)
         m = self.assert_receive_message('NAV_CONTROLLER_OUTPUT', timeout=5)
         nav_pitch = m.nav_pitch
         if nav_pitch > 15.1 or nav_pitch < 14.9:
             raise NotAchievedException(f"Did not achieve correct takeoff pitch ({nav_pitch}).")
+
+        self.fly_home_land_and_disarm()
+
+    def TakeoffBadLevelOff(self):
+        '''Ensure that the takeoff can be completed under 0 pitch demand.'''
+        '''
+        When using no airspeed, the pitch level-off will eventually command 0
+        pitch demand. Ensure that the plane can climb the final 2m to deem the
+        takeoff complete.
+        '''
+
+        self.customise_SITL_commandline(
+            [],
+            model='plane-catapult',
+            defaults_filepath=self.model_defaults_filepath("plane")
+        )
+        self.set_parameters({
+            "ARSPD_USE": 0.0,
+            "PTCH_TRIM_DEG": -10.0,
+            "RTL_AUTOLAND": 2, # The mission contains a DO_LAND_START item.
+            "TKOFF_ALT": 50.0,
+            "TKOFF_DIST": 1000.0,
+            "TKOFF_THR_MAX": 75.0,
+            "TKOFF_THR_MINACC": 3.0,
+        })
+
+        self.load_mission("flaps_tkoff_50.txt")
+        self.change_mode('AUTO')
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # Throw the catapult.
+        self.set_servo(7, 2000)
+
+        # Wait until we've reached the takeoff altitude.
+        target_alt = 50
+        self.wait_altitude(target_alt-1, target_alt+1, relative=True, timeout=30)
+
+        self.delay_sim_time(5)
+
+        self.disarm_vehicle(force=True)
+
+    def TakeoffLevelOffWind(self):
+        '''Ensure the level-off functionality works.'''
+        '''
+        This is primarily targeted to test whether the level-off angle works
+        correctly even though the groundspeed eventually drops in face of wind.
+        '''
+        tkoff_alt = 100.
+        self.set_parameters({
+            "TKOFF_ROTATE_SPD": 15.0,
+            "TKOFF_ALT": tkoff_alt,
+            "TKOFF_DIST": 500,  # Ensure stall prevention doesn't interfere with the test.
+            "TKOFF_PLIM_SEC": 5  # Give some more time to detect the level-off.
+        })
+        self.change_mode("TAKEOFF")
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # Wait until we're well past the rotation.
+        self.wait_groundspeed(24, 25)
+
+        self.set_parameters({
+            "SIM_WIND_DIR": 0.0,  # Set North wind.
+            "SIM_WIND_SPD": 10.0  # Enough to bring groundspeed below cruise speed.
+        })
+
+        self.wait_altitude(tkoff_alt-10, tkoff_alt, relative=True)
+        self.wait_level_flight(accuracy=10, timeout=1)  # Ensure we have roughly level-off.
+        self.delay_sim_time(5)
 
         self.fly_home_land_and_disarm()
 
@@ -5665,39 +5800,61 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
 
     def MAV_CMD_GUIDED_CHANGE_ALTITUDE(self):
         '''test handling of MAV_CMD_GUIDED_CHANGE_ALTITUDE'''
+        target_alt = 750
+        # this location is chosen to be fairly flat, but at a different terrain height to home
+        higher_ground = mavutil.location(-35.35465024, 149.13974996, target_alt, 0)
         self.install_terrain_handlers_context()
         self.start_subtest("set home relative altitude")
         self.takeoff(30, relative=True)
         self.change_mode('GUIDED')
+
+        # remember home
+        home_loc = self.home_position_as_mav_location()
+        height_diff = target_alt - home_loc.alt
+
+        # fly to higher ground
+        self.send_do_reposition(higher_ground, frame=mavutil.mavlink.MAV_FRAME_GLOBAL)
+        self.wait_location(
+            higher_ground,
+            accuracy=200,
+            timeout=600,
+            height_accuracy=10,
+        )
+
         for alt in 50, 70:
             self.run_cmd_int(
                 mavutil.mavlink.MAV_CMD_GUIDED_CHANGE_ALTITUDE,
-                p7=alt,
+                p7=alt+height_diff,
                 frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
             )
-            self.wait_altitude(alt-1, alt+1, timeout=30, relative=True)
+            self.wait_altitude(target_alt+alt-1, target_alt+alt+1, timeout=30, minimum_duration=10, relative=False)
 
         # test for #24535
         self.start_subtest("switch to loiter and resume guided maintains home relative altitude")
         self.change_mode('LOITER')
-        self.delay_sim_time(5)
+        self.delay_sim_time(1)
         self.change_mode('GUIDED')
         self.wait_altitude(
-            alt-3,  # NOTE: reuse of alt from above loop!
-            alt+3,
+            height_diff+alt-3,  # NOTE: reuse of alt from above loop!
+            height_diff+alt+3,
             minimum_duration=10,
             timeout=30,
             relative=True,
         )
         # test that this works if switching between RELATIVE (HOME) and GLOBAL(AMSL)
         self.start_subtest("set global/AMSL altitude, switch to loiter and resume guided")
-        alt = 625
+        alt = target_alt+30
         self.run_cmd_int(
             mavutil.mavlink.MAV_CMD_GUIDED_CHANGE_ALTITUDE,
             p7=alt,
             frame=mavutil.mavlink.MAV_FRAME_GLOBAL,
         )
-        self.wait_altitude(alt-3, alt+3, timeout=30, relative=False)
+        self.wait_altitude(alt-3, alt+3, timeout=30, relative=False, minimum_duration=10)
+
+        # let it settle so LOITER captures a constant altitude
+        self.delay_sim_time(10)
+
+        # now switch to LOITER then back to GUIDED
         self.change_mode('LOITER')
         self.delay_sim_time(5)
         self.change_mode('GUIDED')
@@ -5708,6 +5865,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             timeout=30,
             relative=False,
         )
+
         # test that this works if switching between RELATIVE (HOME) and terrain
         self.start_subtest("set terrain altitude, switch to loiter and resume guided")
         self.change_mode('GUIDED')
@@ -5718,6 +5876,34 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             frame=mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT,
         )
         self.wait_altitude(
+            alt-10,  # NOTE: reuse of alt from abovE
+            alt+10,  # use a 10m buffer as the plane needs to go up and down a bit to maintain terrain distance
+            minimum_duration=10,
+            timeout=30,
+            relative=False,
+            altitude_source="TERRAIN_REPORT.current_height"
+        )
+
+        alt = 150
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_GUIDED_CHANGE_ALTITUDE,
+            p7=alt,
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT,
+        )
+        self.wait_altitude(
+            alt-10,  # NOTE: reuse of alt from abovE
+            alt+10,  # use a 10m buffer as the plane needs to go up and down a bit to maintain terrain distance
+            minimum_duration=10,
+            timeout=30,
+            relative=False,
+            altitude_source="TERRAIN_REPORT.current_height"
+        )
+        self.delay_sim_time(30)
+
+        self.change_mode('LOITER')
+        self.delay_sim_time(1)
+        self.change_mode('GUIDED')
+        self.wait_altitude(
             alt-5,  # NOTE: reuse of alt from abovE
             alt+5,  # use a 5m buffer as the plane needs to go up and down a bit to maintain terrain distance
             minimum_duration=10,
@@ -5725,12 +5911,59 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             relative=False,
             altitude_source="TERRAIN_REPORT.current_height"
         )
-        self.change_mode('LOITER')
-        self.delay_sim_time(5)
-        self.change_mode('GUIDED')
+
+        self.start_subtest("test flyto with relative alt")
+        dest = copy.copy(higher_ground)
+        dest.alt = higher_ground.alt + 100 - home_loc.alt
+        self.progress("dest.alt=%.1f" % dest.alt)
+        self.send_do_reposition(dest, frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT)
+        self.wait_location(
+            dest,
+            accuracy=200,
+            timeout=600,
+            height_accuracy=10,
+        )
         self.wait_altitude(
-            alt-5,  # NOTE: reuse of alt from abovE
-            alt+5,  # use a 5m buffer as the plane needs to go up and down a bit to maintain terrain distance
+            dest.alt-5,
+            dest.alt+5,
+            minimum_duration=10,
+            timeout=30,
+            relative=True
+        )
+
+        self.start_subtest("test flyto with absolute alt")
+        dest = copy.copy(higher_ground)
+        dest.alt = higher_ground.alt + 60
+        self.progress("dest.alt=%.1f" % dest.alt)
+        self.send_do_reposition(dest, frame=mavutil.mavlink.MAV_FRAME_GLOBAL)
+        self.wait_location(
+            dest,
+            accuracy=200,
+            timeout=600,
+            height_accuracy=10,
+        )
+        self.wait_altitude(
+            dest.alt-5,
+            dest.alt+5,
+            minimum_duration=10,
+            timeout=30,
+            relative=False
+        )
+
+        self.start_subtest("test flyto with terrain alt")
+        dest = copy.copy(higher_ground)
+        dest.alt = 130
+        self.progress("dest.alt=%.1f" % dest.alt)
+        self.send_do_reposition(dest, frame=mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT)
+        self.wait_location(
+            dest,
+            accuracy=200,
+            timeout=600,
+            height_accuracy=10,
+        )
+        self.wait_altitude(
+            dest.alt-10,
+            dest.alt+10,
             minimum_duration=10,
             timeout=30,
             relative=False,
@@ -6468,6 +6701,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.Soaring,
             self.Terrain,
             self.TerrainMission,
+            self.TerrainMissionInterrupt,
         ])
         return ret
 
@@ -6503,6 +6737,8 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.TakeoffTakeoff4,
             self.TakeoffTakeoff5,
             self.TakeoffGround,
+            self.TakeoffBadLevelOff,
+            self.TakeoffLevelOffWind,
             self.ForcedDCM,
             self.DCMFallback,
             self.MAVFTP,

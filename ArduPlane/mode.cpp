@@ -75,6 +75,9 @@ bool Mode::enter()
     // disable taildrag takeoff on mode change
     plane.auto_state.fbwa_tdrag_takeoff_mode = false;
 
+    // wipe the takeoff rotation complete state
+    plane.auto_state.rotation_complete = false;
+
     // start with previous WP at current location
     plane.prev_WP_loc = plane.current_loc;
 
@@ -149,6 +152,12 @@ bool Mode::enter()
             bool have_airspeed = quadplane.ahrs.airspeed_estimate(aspeed);
             quadplane.assisted_flight = quadplane.assist.should_assist(aspeed, have_airspeed);
         }
+
+        if (is_vtol_mode() && !quadplane.tailsitter.enabled()) {
+            // if flying inverted and entering a VTOL mode cancel
+            // inverted flight
+            plane.inverted_flight = false;
+        }
 #endif
     }
 
@@ -181,7 +190,6 @@ void Mode::update_target_altitude()
 	    plane.auto_state.wp_proportion_offset = 0;
 	}
         plane.landing.setup_landing_glide_slope(plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.target_altitude.offset_cm);
-	printf("mode.cpp_001: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
     } else if (plane.landing.is_on_approach()) {
 	if (plane.auto_state.target_altitude_update_no != 2) {
 	    plane.auto_state.target_altitude_update_no = 2;
@@ -191,7 +199,6 @@ void Mode::update_target_altitude()
         plane.landing.setup_landing_glide_slope(plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.target_altitude.offset_cm);
 #if AP_RANGEFINDER_ENABLED
         plane.landing.adjust_landing_slope_for_rangefinder_bump(plane.rangefinder_state, plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.auto_state.wp_distance, plane.target_altitude.offset_cm);
-	printf("mode.cpp_002: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
 #endif
     } else if (plane.landing.get_target_altitude_location(target_location)) {
 	if (plane.auto_state.target_altitude_update_no != 3) {
@@ -200,7 +207,6 @@ void Mode::update_target_altitude()
 	    plane.auto_state.wp_proportion_offset = 0;
 	}
         plane.set_target_altitude_location(target_location);
-	printf("mode.cpp_003: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
 #if HAL_SOARING_ENABLED
     } else if (plane.g2.soaring_controller.is_active() && plane.g2.soaring_controller.get_throttle_suppressed()) {
 	if (plane.auto_state.target_altitude_update_no != 4) {
@@ -211,7 +217,6 @@ void Mode::update_target_altitude()
         // Reset target alt to current alt, to prevent large altitude errors when gliding.
         plane.set_target_altitude_location(plane.current_loc);
         plane.reset_offset_altitude();
-	printf("mode.cpp_004: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
 #endif
     } else if (plane.reached_loiter_target()) {
         if (plane.auto_state.checked_for_autoland) {
@@ -221,7 +226,6 @@ void Mode::update_target_altitude()
 	    	plane.auto_state.wp_proportion_offset = 0;
 	    }
             plane.set_target_altitude_proportion(plane.flex_prev_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
-	printf("mode.cpp_005: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
         } else {
 	    if (plane.auto_state.target_altitude_update_no != 6) {
 	        plane.auto_state.target_altitude_update_no = 6;
@@ -231,41 +235,43 @@ void Mode::update_target_altitude()
             // once we reach a loiter target then lock to the final
             // altitude target
             plane.set_target_altitude_location(plane.next_WP_loc);
-	printf("mode.cpp_006: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
         }
-    } else if (plane.auto_state.crosstrack && plane.auto_state.checked_for_autoland) {
-	if (plane.auto_state.target_altitude_update_no != 7) {
-	    plane.auto_state.target_altitude_update_no = 7;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
-        plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
-	printf("mode.cpp_007: target_altitude.amsl_cm = %d, flex_next_WP_loc.alt = %d, relative_alt = %d\n", plane.target_altitude.amsl_cm, plane.flex_next_WP_loc.alt, plane.flex_next_WP_loc.relative_alt);
-	printf("mode.cpp_007: offset_cm = %d, wp_proportion = %f, wp_proporton_offset = %f\n", plane.target_altitude.offset_cm, plane.auto_state.wp_proportion, plane.auto_state.wp_proportion_offset);
     } else if (plane.auto_state.tp_crosstrack &&
-               plane.target_altitude.offset_cm != 0 && 
+               plane.target_altitude.offset_cm != 0 &&
                !plane.current_loc.past_interval_finish_line(plane.flex_prev_WP_loc, plane.flex_next_WP_loc)) {
-	if (plane.auto_state.target_altitude_update_no != 8) {
-	    plane.auto_state.target_altitude_update_no = 8;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
+        if (plane.auto_state.target_altitude_update_no != 8) {
+            plane.auto_state.target_altitude_update_no = 8;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+	    plane.target_altitude.offset_cm = 0;
+        }
         // control climb/descent rate
         plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
-	printf("mode.cpp_008: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
-    } else if (plane.target_altitude.offset_cm != 0 && 
-               !plane.current_loc.past_interval_finish_line(plane.prev_WP_loc, plane.next_WP_loc)) {
-	if (plane.auto_state.target_altitude_update_no != 9) {
-	    plane.auto_state.target_altitude_update_no = 9;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
-        // control climb/descent rate
-        plane.set_target_altitude_proportion(plane.next_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
-
-        // stay within the range of the start and end locations in altitude
-        plane.constrain_target_altitude_location(plane.next_WP_loc, plane.prev_WP_loc);
-	printf("mode.cpp_009: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
+#if AP_TERRAIN_AVAILABLE
+    } else if (plane.next_WP_loc.terrain_alt &&
+            plane.set_target_altitude_proportion_terrain()) {
+        // special case for target as terrain relative handled inside
+        // set_target_altitude_proportion_terrain
+#endif
+    } else if (plane.auto_state.crosstrack && plane.auto_state.checked_for_autoland) {
+        if (plane.auto_state.target_altitude_update_no != 7) {
+            plane.auto_state.target_altitude_update_no = 7;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+        }
+        plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
+//    } else if (plane.target_altitude.offset_cm != 0 && 
+//               !plane.current_loc.past_interval_finish_line(plane.prev_WP_loc, plane.next_WP_loc)) {
+//	if (plane.auto_state.target_altitude_update_no != 9) {
+//	    plane.auto_state.target_altitude_update_no = 9;
+//	    plane.auto_state.wp_proportion = 0;
+//	    plane.auto_state.wp_proportion_offset = 0;
+//	}
+//        // control climb/descent rate
+//        plane.set_target_altitude_proportion(plane.next_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
+//
+//        // stay within the range of the start and end locations in altitude
+//        plane.constrain_target_altitude_location(plane.next_WP_loc, plane.prev_WP_loc);
     } else if (plane.auto_state.checked_for_autoland) {
 	if (plane.auto_state.target_altitude_update_no != 10) {
 	    plane.auto_state.target_altitude_update_no = 10;
@@ -273,15 +279,13 @@ void Mode::update_target_altitude()
 	    plane.auto_state.wp_proportion_offset = 0;
 	}
         // nothing to do
-	printf("mode.cpp_010: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
     } else {
 	if (plane.auto_state.target_altitude_update_no != 11) {
 	    plane.auto_state.target_altitude_update_no = 11;
 	    plane.auto_state.wp_proportion = 0;
 	    plane.auto_state.wp_proportion_offset = 0;
 	}
-        plane.set_target_altitude_location(plane.next_WP_loc);
-	printf("mode.cpp_011: target_altitude.amsl_cm = %d\n", plane.target_altitude.amsl_cm);
+//        plane.set_target_altitude_location(plane.next_WP_loc);
     }
 }
 

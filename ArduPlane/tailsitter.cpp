@@ -289,6 +289,12 @@ void Tailsitter::output(void)
         return;
     }
 
+    if (!hal.util->get_soft_armed() ||
+        SRV_Channels::get_emergency_stop()) {
+        // Ensure motors stop on disarm
+        motors->output_min();
+    }
+
     float tilt_left = 0.0f;
     float tilt_right = 0.0f;
 
@@ -896,6 +902,10 @@ void Tailsitter_Transition::VTOL_update()
             vtol_limit_start_ms = now;
             vtol_limit_initial_pitch = quadplane.ahrs_view->pitch_sensor;
         }
+
+        // clear inverted flight flag to make behaviour consistent
+        // with other quadplane types
+        plane.inverted_flight = false;
     } else {
         // Keep assistance reset while not checking
         quadplane.assist.reset();

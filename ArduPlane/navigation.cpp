@@ -94,7 +94,6 @@ void Plane::navigate()
     if (next_WP_loc.lat == 0 && next_WP_loc.lng == 0) {
         return;
     }
-
     check_home_alt_change();
 
     // waypoint distance from plane
@@ -103,26 +102,26 @@ void Plane::navigate()
 
     if (auto_state.checked_for_autoland && reached_loiter_target()) {
         float sum_cd = fabs((float)loiter.sum_cd);
-        auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
-	printf("navigation.cpp_001: wp_proportion = %f\n", auto_state.wp_proportion);
+	if(loiter.sum_cd == 0 && loiter.total_cd == 0){
+	    auto_state.wp_proportion = 0;
+	}
+	else{
+            auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
+	}
     } else if (auto_state.tp_crosstrack) {
         if (auto_state.tp_circle_mode && loiter.total_cd != 0) {
             float sum_cd = fabs((float)loiter.sum_cd);
             auto_state.wp_proportion = sum_cd / MAX((float)loiter.total_cd, sum_cd);
-	printf("navigation.cpp_002: wp_proportion = %f\n", auto_state.wp_proportion);
         } else {
             auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
             auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, flex_next_WP_loc);
-	printf("navigation.cpp_003: wp_proportion = %f\n", auto_state.wp_proportion);
         }
     } else if (auto_state.crosstrack && auto_state.checked_for_autoland) {
 	auto_state.wp_distance = current_loc.get_distance(flex_next_WP_loc);
 	auto_state.wp_proportion = current_loc.line_path_proportion(flex_prev_WP_loc, flex_next_WP_loc);
-	printf("navigation.cpp_004: wp_proportion = %f\n", auto_state.wp_proportion);
     } else {
         auto_state.wp_distance = current_loc.get_distance(next_WP_loc);
         auto_state.wp_proportion = current_loc.line_path_proportion(prev_WP_loc, next_WP_loc);
-	printf("navigation.cpp_005: wp_proportion = %f\n", auto_state.wp_proportion);
     }
     if (fabs(wp_proportion_prev) < 1e-6 && auto_state.wp_proportion < 0.) {
         auto_state.wp_proportion_offset = -auto_state.wp_proportion;

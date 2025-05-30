@@ -10,12 +10,14 @@ function debug_param_monitor()
     local throttle_now = SRV_Channels:get_output_scaled(k_throttle)
     local ARSPD_now = ahrs:airspeed_estimate()
     local pitch_now = math.deg(ahrs:get_pitch())
+    local dh_now =  - ahrs:get_velocity_NED():z()
 
     -- 取得したパラメータをリスト化(適宜同じフォーマットで追加)
     local params = {
         {name = "Throttle percent", value = throttle_now, format="%.2f%%"},
         {name = "ARSPD", value = ARSPD_now, format = "%.2f m/s"},
         {name = "Pitch angle", value = pitch_now, format = "%.2f deg."},
+        {name = "dh", value = dh_now, format = "%.2f m/s"},
     }
 
     local all_params_valid = true

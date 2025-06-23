@@ -2557,6 +2557,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             }
             plane.auto_state.rtl_landing_point = B;
             plane.auto_state.rtl_landing_point.alt = plane.home.alt;
+            break;
         }
     }
     // total_dist と現在の高度からグライドスロープを求める

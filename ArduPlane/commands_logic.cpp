@@ -762,7 +762,7 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             Vector2f AB = flex_prev_WP_loc.get_distance_NE(flex_next_WP_loc);
             float AB_Length = AB.length();
             if (AB_Length < next_WP_radius){
-                return tru;
+                return true;
             }
             float theta = next_WP_direction * asinf(next_WP_radius/MAX(AB_Length, 0.1));
             theta += next_WP_direction * 1.5707963f;    // 1.5707963 = pi/2

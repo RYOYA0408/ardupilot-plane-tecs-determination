@@ -620,6 +620,7 @@ bool Plane::verify_takeoff()
         next_WP_loc = prev_WP_loc = flex_prev_WP_loc = current_loc;
         next_WP_radius = prev_WP_radius = get_wp_radius();
         next_WP_direction = prev_WP_direction = 1;
+        set_target_altitude_location(next_WP_loc);
 
 #if AP_FENCE_ENABLED
         plane.fence.auto_enable_fence_after_takeoff();
@@ -760,6 +761,9 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             // 目標位置を前回位置から turning circle へ引いた接線の接点に設定
             Vector2f AB = flex_prev_WP_loc.get_distance_NE(flex_next_WP_loc);
             float AB_Length = AB.length();
+            if (AB_Length < next_WP_radius){
+                return tru;
+            }
             float theta = next_WP_direction * asinf(next_WP_radius/MAX(AB_Length, 0.1));
             theta += next_WP_direction * 1.5707963f;    // 1.5707963 = pi/2
             Vector2f v_tmp = AB;
@@ -805,6 +809,9 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
         // 目標位置を現在位置から turning circle へ引いた接線の接点に設定
         Vector2f air_B = current_loc.get_distance_NE(flex_next_WP_loc);
         float air_B_Length = air_B.length();
+        if (air_B_Length < next_WP_radius){
+            return true;
+        }
         float theta = next_WP_direction * asinf(next_WP_radius/MAX(air_B_Length, 0.1));
         theta += next_WP_direction * 1.5707963f;    // 1.5707963 = pi/2
         Vector2f v_tmp = air_B;

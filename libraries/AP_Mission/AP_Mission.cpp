@@ -2619,8 +2619,8 @@ float AP_Mission::get_dist_wp2tp(Location WP, Location TP, Location &tangentPoin
     // 目標位置を前回位置から turning circle へ引いた接線の接点に設定
     Vector2f wp2tp = WP.get_distance_NE(TP);
     float wp2tp_len = wp2tp.length();
-    if(wp2tp_len < 1e-3){
-        return 0.0;
+    if(wp2tp_len < radius){
+        return wp2tp_len;
     }
     float theta = dir * asinf(radius/MAX(wp2tp_len, 0.1));
     theta += dir * 1.5707963f;    // 1.5707963 = pi/2

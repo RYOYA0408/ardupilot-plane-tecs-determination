@@ -184,54 +184,54 @@ void Mode::update_target_altitude()
     Location target_location;
 
     if (plane.landing.is_flaring()) {
-	if (plane.auto_state.target_altitude_update_no != 1) {
-	    plane.auto_state.target_altitude_update_no = 1;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
+        if (plane.auto_state.target_altitude_update_no != 1) {
+            plane.auto_state.target_altitude_update_no = 1;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+        }
         plane.landing.setup_landing_glide_slope(plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.target_altitude.offset_cm);
     } else if (plane.landing.is_on_approach()) {
-	if (plane.auto_state.target_altitude_update_no != 2) {
-	    plane.auto_state.target_altitude_update_no = 2;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
+        if (plane.auto_state.target_altitude_update_no != 2) {
+            plane.auto_state.target_altitude_update_no = 2;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+        }
         plane.landing.setup_landing_glide_slope(plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.target_altitude.offset_cm);
 #if AP_RANGEFINDER_ENABLED
         plane.landing.adjust_landing_slope_for_rangefinder_bump(plane.rangefinder_state, plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.auto_state.wp_distance, plane.target_altitude.offset_cm);
 #endif
     } else if (plane.landing.get_target_altitude_location(target_location)) {
-	if (plane.auto_state.target_altitude_update_no != 3) {
-	    plane.auto_state.target_altitude_update_no = 3;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
+        if (plane.auto_state.target_altitude_update_no != 3) {
+            plane.auto_state.target_altitude_update_no = 3;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+        }
         plane.set_target_altitude_location(target_location);
 #if HAL_SOARING_ENABLED
     } else if (plane.g2.soaring_controller.is_active() && plane.g2.soaring_controller.get_throttle_suppressed()) {
-	if (plane.auto_state.target_altitude_update_no != 4) {
-	    plane.auto_state.target_altitude_update_no = 4;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
+        if (plane.auto_state.target_altitude_update_no != 4) {
+            plane.auto_state.target_altitude_update_no = 4;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+        }
         // Reset target alt to current alt, to prevent large altitude errors when gliding.
         plane.set_target_altitude_location(plane.current_loc);
         plane.reset_offset_altitude();
 #endif
     } else if (plane.reached_loiter_target()) {
         if (plane.auto_state.checked_for_autoland) {
-	    if (plane.auto_state.target_altitude_update_no != 5) {
-	        plane.auto_state.target_altitude_update_no = 5;
-	        plane.auto_state.wp_proportion = 0;
-	    	plane.auto_state.wp_proportion_offset = 0;
-	    }
+            if (plane.auto_state.target_altitude_update_no != 5) {
+                plane.auto_state.target_altitude_update_no = 5;
+                plane.auto_state.wp_proportion = 0;
+                plane.auto_state.wp_proportion_offset = 0;
+            }
             plane.set_target_altitude_proportion(plane.flex_prev_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
         } else {
-	    if (plane.auto_state.target_altitude_update_no != 6) {
-	        plane.auto_state.target_altitude_update_no = 6;
-	        plane.auto_state.wp_proportion = 0;
-	    	plane.auto_state.wp_proportion_offset = 0;
-	    }
+            if (plane.auto_state.target_altitude_update_no != 6) {
+                plane.auto_state.target_altitude_update_no = 6;
+                plane.auto_state.wp_proportion = 0;
+                plane.auto_state.wp_proportion_offset = 0;
+            }
             // once we reach a loiter target then lock to the final
             // altitude target
             plane.set_target_altitude_location(plane.next_WP_loc);
@@ -243,7 +243,7 @@ void Mode::update_target_altitude()
             plane.auto_state.target_altitude_update_no = 8;
             plane.auto_state.wp_proportion = 0;
             plane.auto_state.wp_proportion_offset = 0;
-	    plane.target_altitude.offset_cm = 0;
+	        plane.target_altitude.offset_cm = 0;
         }
         // control climb/descent rate
         plane.set_target_altitude_proportion(plane.flex_next_WP_loc, 1.0f-(plane.auto_state.wp_proportion+plane.auto_state.wp_proportion_offset));
@@ -273,18 +273,18 @@ void Mode::update_target_altitude()
 //        // stay within the range of the start and end locations in altitude
 //        plane.constrain_target_altitude_location(plane.next_WP_loc, plane.prev_WP_loc);
     } else if (plane.auto_state.checked_for_autoland) {
-	if (plane.auto_state.target_altitude_update_no != 10) {
-	    plane.auto_state.target_altitude_update_no = 10;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
+        if (plane.auto_state.target_altitude_update_no != 10) {
+            plane.auto_state.target_altitude_update_no = 10;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+        }
         // nothing to do
     } else {
-	if (plane.auto_state.target_altitude_update_no != 11) {
-	    plane.auto_state.target_altitude_update_no = 11;
-	    plane.auto_state.wp_proportion = 0;
-	    plane.auto_state.wp_proportion_offset = 0;
-	}
+        if (plane.auto_state.target_altitude_update_no != 11) {
+            plane.auto_state.target_altitude_update_no = 11;
+            plane.auto_state.wp_proportion = 0;
+            plane.auto_state.wp_proportion_offset = 0;
+        }
 //        plane.set_target_altitude_location(plane.next_WP_loc);
     }
 }

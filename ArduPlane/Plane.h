@@ -562,8 +562,8 @@ private:
         // are we circle tracking mode for this turning point? 
         int32_t tp_circle_mode;
 
-	// update_target_altitude() でのモード切り替え認識用
-	int32_t target_altitude_update_no;
+	    // update_target_altitude() でのモード切り替え認識用
+	    int32_t target_altitude_update_no;
 
         // 以下，DO_LAND_START 以降の着陸シーケンス関連変数
         // 着陸経路総距離

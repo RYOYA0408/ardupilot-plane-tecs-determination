@@ -1165,11 +1165,11 @@ void AP_TECS::_initialise_states(float hgt_afe)
         }
 
         _hgt_afe              = hgt_afe;
-        _hgt_dem_lpf          = hgt_afe;
-        _hgt_dem_rate_ltd     = hgt_afe;
-        _hgt_dem_prev         = hgt_afe;
+//        _hgt_dem_lpf          = hgt_afe;
+//        _hgt_dem_rate_ltd     = hgt_afe;
+//        _hgt_dem_prev         = hgt_afe;
         _hgt_dem              = hgt_afe;
-        _hgt_dem_in_prev      = hgt_afe;
+//        _hgt_dem_in_prev      = hgt_afe;
         _hgt_dem_in_raw       = hgt_afe;
         _flags.underspeed     = false;
         _flags.badDescent     = false;

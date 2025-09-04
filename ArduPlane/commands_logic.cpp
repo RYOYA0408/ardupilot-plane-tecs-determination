@@ -617,10 +617,29 @@ bool Plane::verify_takeoff()
                           (double)(relative_alt_cm*0.01f));
         steer_state.hold_course_cd = -1;
         auto_state.takeoff_complete = true;
-        next_WP_loc = prev_WP_loc = flex_prev_WP_loc = current_loc;
-        next_WP_radius = prev_WP_radius = get_wp_radius();
-        next_WP_direction = prev_WP_direction = 1;
-        set_target_altitude_location(next_WP_loc);
+        // Takeoff 完了後の waypoint があったら
+        AP_Mission::Mission_Command next_nav_cmd;
+        if (mission.get_next_nav_cmd(mission.get_current_nav_index() + 1, next_nav_cmd)) {
+            //no next waypoint to shoot for -- go ahead and break out of loiter
+            if (next_nav_cmd.id == MAV_CMD_NAV_WAYPOINT){
+                next_WP_loc = prev_WP_loc = flex_prev_WP_loc = next_nav_cmd.content.location;
+                next_WP_radius = prev_WP_radius = get_wp_radius();
+                next_WP_direction = prev_WP_direction = 1;
+                set_target_altitude_location(next_WP_loc);
+            }
+            else{
+                next_WP_loc = prev_WP_loc = flex_prev_WP_loc = current_loc;
+                next_WP_radius = prev_WP_radius = get_wp_radius();
+                next_WP_direction = prev_WP_direction = 1;
+                set_target_altitude_location(next_WP_loc);
+            }
+        }
+        else{
+            next_WP_loc = prev_WP_loc = flex_prev_WP_loc = current_loc;
+            next_WP_radius = prev_WP_radius = get_wp_radius();
+            next_WP_direction = prev_WP_direction = 1;
+            set_target_altitude_location(next_WP_loc);
+        }
 
 #if AP_FENCE_ENABLED
         plane.fence.auto_enable_fence_after_takeoff();

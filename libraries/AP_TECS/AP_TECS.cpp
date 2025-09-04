@@ -618,7 +618,7 @@ void AP_TECS::_update_height_demand(void)
         if (_hgt_at_start_of_flare > _flare_holdoff_hgt) {
 //            p = constrain_float((_hgt_at_start_of_flare - _hgt_afe) / (_hgt_at_start_of_flare - _flare_holdoff_hgt), 0.0f, 1.0f);
             p = 1.0f;
-	} else {
+	    } else {
             p = 1.0f;
         }
         _hgt_rate_dem = _hgt_rate_at_flare_entry * (1.0f - p) - land_sink_rate_adj * p;

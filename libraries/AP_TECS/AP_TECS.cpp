@@ -1188,6 +1188,7 @@ void AP_TECS::_initialise_states(float hgt_afe)
         _hgt_dem_in           = hgt_afe;
         _flags.underspeed     = false;
         _flags.badDescent     = false;
+        _TAS_dem_adj = _TAS_dem;
         _max_climb_scaler = 1.0f;
         _max_sink_scaler = 1.0f;
         _pitch_demand_lpf.reset(_ahrs.get_pitch());

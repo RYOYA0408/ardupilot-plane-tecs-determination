@@ -311,6 +311,7 @@ private:
     // This is the demand tracked by the TECS control loops
     float _TAS_dem_adj;
     float _TAS_dem_adj_2;
+    float _TAS_dem_previous;
 
     // Speed rate demand after application of rate limiting
     // This is the demand tracked by the TECS control loops
@@ -359,6 +360,7 @@ private:
 
     // auto mode flightstage
     enum AP_FixedWing::FlightStage _flight_stage;
+    enum AP_FixedWing::FlightStage _flight_stage_prev;
 
     // pitch demand before limiting
     float _pitch_dem_unc;

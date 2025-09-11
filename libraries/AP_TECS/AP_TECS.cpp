@@ -484,38 +484,38 @@ void AP_TECS::_update_speed_demand(void)
     // calculate velocity rate limits based on physical performance limits
     // provision to use a different rate limit if bad descent or underspeed condition exists
     // Use 50% of maximum energy rate on gain, 90% on dissipation to allow margin for total energy controller
-    const float velRateMax = 0.5f * _STEdot_max / _TAS_state;
+    const float velRateMax = 0.5f * _SKEdot_dem / _TAS_state;
     // Maximum permissible rate of deceleration value at max airspeed
     const float velRateNegMax = 0.9f * _STEdot_neg_max / _TASmax;
     // Maximum permissible rate of deceleration value at cruise speed
     const float velRateNegCruise = 0.9f * _STEdot_min / TAScruise;
     // Linear interpolation between velocity rate at cruise and max speeds, capped at those speeds
     const float velRateMin = linear_interpolate(velRateNegMax, velRateNegCruise, _TAS_state, _TASmax, TAScruise);
-    const float TAS_dem_previous = _TAS_dem_adj;
+    _TAS_dem_previous = _TAS_dem_adj;
 
     // Apply rate limit
-    if ((_TAS_dem - TAS_dem_previous) > (velRateMax * _DT)) {
-        _TAS_dem_adj = TAS_dem_previous + velRateMax * _DT;
+    if ((_TAS_dem - _TAS_dem_previous) > (velRateMax * _DT)) {
+        _TAS_dem_adj = _TAS_dem_previous + velRateMax * _DT;
         _TAS_rate_dem = velRateMax;
-    } else if ((_TAS_dem - TAS_dem_previous) < (velRateMin * _DT)) {
+    } else if ((_TAS_dem - _TAS_dem_previous) < (velRateMin * _DT)) {
         float omega = 2.0 * 3.14159265 / 15.0;
         float denom = 1.0 + 2.0 * omega * _DT + omega*omega * _DT*_DT;
         float a = (2.0 + 2.0 * omega * _DT) / denom;
         float b = 1.0 / denom;
         float c = omega*omega * _DT*_DT * _TAS_dem / denom;
-        float y_1 = TAS_dem_previous;
+        float y_1 = _TAS_dem_previous;
         float y_2 = _TAS_dem_adj_2;
         _TAS_dem_adj = a * y_1 - b * y_2 + c;
-        _TAS_rate_dem = (_TAS_dem_adj - TAS_dem_previous) / _DT;
+        _TAS_rate_dem = (_TAS_dem_adj - _TAS_dem_previous) / _DT;
     } else {
-        _TAS_rate_dem = (_TAS_dem - TAS_dem_previous) / _DT;
+        _TAS_rate_dem = (_TAS_dem - _TAS_dem_previous) / _DT;
         _TAS_dem_adj = _TAS_dem;
     }
     const float alpha = _DT / (_DT + timeConstant());
     _TAS_rate_dem_lpf = _TAS_rate_dem_lpf * (1.0f - alpha) + _TAS_rate_dem * alpha;
 
     // Constrain speed demand again to protect against bad values on initialisation.
-    _TAS_dem_adj_2 = TAS_dem_previous;
+    _TAS_dem_adj_2 = _TAS_dem_previous;
     _TAS_dem_adj = constrain_float(_TAS_dem_adj, _TASmin, _TASmax);
 }
 
@@ -534,8 +534,15 @@ void AP_TECS::_update_height_demand(void)
 
 
     if (!_landing.is_flaring()) {
-        // Apply 2 point moving average to demanded height
-        const float hgt_dem = 0.5f * (_hgt_dem_in + _hgt_dem_in_prev);
+        float hgt_dem;
+        // 離陸完了直後だけ hgt_dem の移動平均を行わない
+        if (_flight_stage != AP_FixedWing::FlightStage::TAKEOFF && _flight_stage_prev == AP_FixedWing::FlightStage::TAKEOFF){
+            hgt_dem = _hgt_dem_in;
+        }
+        else {
+            // Apply 2 point moving average to demanded height
+            hgt_dem = 0.5f * (_hgt_dem_in + _hgt_dem_in_prev);
+        }
         _hgt_dem_in_prev = _hgt_dem_in;
 
         // Limit height rate of change
@@ -553,6 +560,10 @@ void AP_TECS::_update_height_demand(void)
             } else {
                 _sink_fraction = 0.0f;
             }
+            _hgt_dem_rate_ltd = hgt_dem;
+        }
+        // 離陸完了直後だけ _hgt_dem_rate_ltd を hgt_dem に合わせる
+        if (_flight_stage != AP_FixedWing::FlightStage::TAKEOFF && _flight_stage_prev == AP_FixedWing::FlightStage::TAKEOFF){
             _hgt_dem_rate_ltd = hgt_dem;
         }
 
@@ -670,10 +681,11 @@ void AP_TECS::_update_energies(void)
     // Calculate specific energy demands
     _SPE_dem = _hgt_dem * GRAVITY_MSS;
     _SKE_dem = 0.5f * _TAS_dem_adj * _TAS_dem_adj;
+    const float SKE_dem_prev = 0.5f * _TAS_dem_previous * _TAS_dem_previous;
 
     // Calculate specific energy rate demands and high pass filter demanded airspeed
     // rate of change to match the filtering applied to the measurement
-    _SKEdot_dem = _TAS_state * (_TAS_rate_dem - _TAS_rate_dem_lpf);
+    _SKEdot_dem = (_SKE_dem - SKE_dem_prev) / _DT;
 
     // Calculate specific energy
     _SPE_est = _height * GRAVITY_MSS;
@@ -762,6 +774,7 @@ void AP_TECS::_update_throttle_with_airspeed(void)
             throttle_damp = _land_throttle_damp;
         }
         _throttle_dem = (_STE_error + STEdot_error * throttle_damp) * K_STE2Thr + ff_throttle;
+        _throttle_dem = constrain_float(_throttle_dem, 0, 1.0);
 
         float THRminf_clipped_to_zero = constrain_float(_THRminf, 0, _THRmaxf);
 
@@ -770,7 +783,7 @@ void AP_TECS::_update_throttle_with_airspeed(void)
         // Additionally constrain the integrator state amplitude so that the integrator comes off limits faster.
         const float maxAmp = 0.5f*(_THRmaxf - THRminf_clipped_to_zero);
         const float integ_max = constrain_float((_THRmaxf - _throttle_dem + 0.1f),-maxAmp,maxAmp);
-        const float integ_min = constrain_float((_THRminf - _throttle_dem - 0.1f),-maxAmp,maxAmp);
+        const float integ_min = -1.0;
 
         // Calculate integrator state, constraining state
         // Set integrator to a max throttle value during climbout
@@ -1131,6 +1144,7 @@ void AP_TECS::_initialise_states(float hgt_afe)
         _DT                   = 0.02f; // when first starting TECS, use the most likely time constant
         _lag_comp_hgt_offset  = 0.0f;
         _post_TO_hgt_offset   = 0.0f;
+        _THRminf_ext = 0.0f;
         _use_synthetic_airspeed_once = false;
 
         _flags.underspeed            = false;
@@ -1165,15 +1179,15 @@ void AP_TECS::_initialise_states(float hgt_afe)
         }
 
         _hgt_afe              = hgt_afe;
-//        _hgt_dem_lpf          = hgt_afe;
-//        _hgt_dem_rate_ltd     = hgt_afe;
-//        _hgt_dem_prev         = hgt_afe;
+        _hgt_dem_lpf          = hgt_afe;
+        _hgt_dem_rate_ltd     = hgt_afe;
+        _hgt_dem_prev         = hgt_afe;
         _hgt_dem              = hgt_afe;
-//        _hgt_dem_in_prev      = hgt_afe;
+        _hgt_dem_in_prev      = hgt_afe;
         _hgt_dem_in_raw       = hgt_afe;
+        _hgt_dem_in           = hgt_afe;
         _flags.underspeed     = false;
         _flags.badDescent     = false;
-        _TAS_dem_adj = _TAS_dem;
         _max_climb_scaler = 1.0f;
         _max_sink_scaler = 1.0f;
         _pitch_demand_lpf.reset(_ahrs.get_pitch());
@@ -1308,6 +1322,8 @@ void AP_TECS::update_pitch_throttle(int32_t hgt_dem_cm,
     if (_options & OPTION_GLIDER_ONLY) {
         _flags.badDescent = false;
     }
+
+    _flight_stage_prev = _flight_stage;
 
 #if HAL_LOGGING_ENABLED
     if (AP::logger().should_log(_log_bitmask)){

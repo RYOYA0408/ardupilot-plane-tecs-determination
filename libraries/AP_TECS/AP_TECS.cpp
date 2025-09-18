@@ -484,7 +484,7 @@ void AP_TECS::_update_speed_demand(void)
     // calculate velocity rate limits based on physical performance limits
     // provision to use a different rate limit if bad descent or underspeed condition exists
     // Use 50% of maximum energy rate on gain, 90% on dissipation to allow margin for total energy controller
-    const float velRateMax = 0.5f * _SKEdot_dem / _TAS_state;
+    const float velRateMax = 0.5f * _STEdot_max / _TAS_state;
     // Maximum permissible rate of deceleration value at max airspeed
     const float velRateNegMax = 0.9f * _STEdot_neg_max / _TASmax;
     // Maximum permissible rate of deceleration value at cruise speed

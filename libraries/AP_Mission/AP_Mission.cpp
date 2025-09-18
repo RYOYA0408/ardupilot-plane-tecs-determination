@@ -2479,6 +2479,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
     Mission_Command last_wp_cmd;    // 着陸地点前野 WapyPoint を指定するコマンド
     Mission_Command last_tp_cmd;    // 経路上の最後の TurnPoint を指定するコマンド
     float total_dist = 0;
+    float approach_dist = 0;
     const auto count = num_commands();
     // DO_LAND_START 以降のミッションコマンドを読み込む
     for (uint16_t i = land_idx+1; i < count; i++){
@@ -2555,6 +2556,8 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
                 // command does not have a valid location and cannot get next valid
                 continue;
             }
+            approach_dist = A.get_distance(B);
+            total_dist += approach_dist;
             plane.auto_state.rtl_landing_point = B;
             plane.auto_state.rtl_landing_point.alt = plane.home.alt;
             break;
@@ -2566,7 +2569,7 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
         curr_alt = current_loc.alt;
     }
     total_dist = MAX(total_dist, 1.0);
-    float glide_slope_deg = degrees(atanf((curr_alt - last_wp.alt) / 100.0 / total_dist));
+    float glide_slope_deg = degrees(atanf((curr_alt - plane.home.alt) / 100.0 / total_dist));
     int additional_turn_number = 0;
     // グライドスロープが 3deg を上回る場合，TurnPoint の周回数を増やす
     if(last_tp.initialised() && fabs(last_tp_radius)>10.0){
@@ -2574,12 +2577,13 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
             additional_turn_number ++;
             total_dist += 2.0*M_PI*last_tp_radius;
             total_dist = MAX(total_dist, 1.0);
-            glide_slope_deg = degrees(atanf(((curr_alt - last_wp.alt) / 100.0) / total_dist));
+            glide_slope_deg = degrees(atanf(((curr_alt - plane.home.alt) / 100.0) / total_dist));
         }
         last_tp_cmd.set_loiter_turns(additional_turn_number);
         replace_cmd(last_tp_cmd.index, last_tp_cmd);
     }
     plane.auto_state.rtl_land_seq_last_wp = last_wp_cmd.content.location;
+    plane.auto_state.rtl_land_seq_last_wp.alt = (curr_alt - plane.home.alt) / 100.0 * approach_dist / total_dist;
     plane.auto_state.rtl_land_seq_last_wp.alt += plane.home.alt;
     plane.auto_state.rtl_land_seq_sum_distance = 0;
     plane.auto_state.rtl_land_seq_total_distance = total_dist;

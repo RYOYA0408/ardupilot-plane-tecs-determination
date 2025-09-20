@@ -2584,7 +2584,6 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
     }
     plane.auto_state.rtl_land_seq_last_wp = last_wp_cmd.content.location;
     plane.auto_state.rtl_land_seq_last_wp.alt = approach_dist * tan(radians(glide_slope_deg))*100.0;
-    printf("AP_Mission: last_wp.alt = %f\n", plane.auto_state.rtl_land_seq_last_wp.alt/100.0);
     last_wp_cmd.content.location.alt = plane.auto_state.rtl_land_seq_last_wp.alt;
     replace_cmd(last_wp_cmd.index, last_wp_cmd);
 //    plane.auto_state.rtl_land_seq_last_wp.alt += plane.home.alt;

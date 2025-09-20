@@ -2583,8 +2583,11 @@ void AP_Mission::get_total_dist_for_land(uint16_t land_idx, Location current_loc
         replace_cmd(last_tp_cmd.index, last_tp_cmd);
     }
     plane.auto_state.rtl_land_seq_last_wp = last_wp_cmd.content.location;
-    plane.auto_state.rtl_land_seq_last_wp.alt = (curr_alt - plane.home.alt) / 100.0 * approach_dist / total_dist;
-    plane.auto_state.rtl_land_seq_last_wp.alt += plane.home.alt;
+    plane.auto_state.rtl_land_seq_last_wp.alt = approach_dist * tan(radians(glide_slope_deg))*100.0;
+    printf("AP_Mission: last_wp.alt = %f\n", plane.auto_state.rtl_land_seq_last_wp.alt/100.0);
+    last_wp_cmd.content.location.alt = plane.auto_state.rtl_land_seq_last_wp.alt;
+    replace_cmd(last_wp_cmd.index, last_wp_cmd);
+//    plane.auto_state.rtl_land_seq_last_wp.alt += plane.home.alt;
     plane.auto_state.rtl_land_seq_sum_distance = 0;
     plane.auto_state.rtl_land_seq_total_distance = total_dist;
 }

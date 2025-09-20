@@ -852,9 +852,9 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
             }
             const float A = auto_state.rtl_land_seq_total_distance;
             const float B = auto_state.rtl_land_seq_lastwp_distance + P.get_distance(flex_next_WP_loc);
-            const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
+            const float H = (auto_state.rtl_land_seq_initial_loc.alt - home.alt) / 100;    // cm -> m
             const float h = (A-B)/MAX(A, 1)*H;
-            flex_next_WP_loc.alt = h*100 + auto_state.rtl_land_seq_last_wp.alt;
+            flex_next_WP_loc.alt = h*100 + home.alt;
             set_offset_altitude_location(P, flex_next_WP_loc);
          }
         float acceptance_distance_m = 0.5*L1_controller.get_L1_dist();
@@ -899,12 +899,12 @@ bool Plane::verify_nav_tp(const AP_Mission::Mission_Command& cmd)
         if (auto_state.checked_for_autoland) {
             const float A = auto_state.rtl_land_seq_total_distance;
             const float B = auto_state.rtl_land_seq_lastwp_distance + 2.0*radius*loiter.total_cd/36000.0*M_PI;
-            const float H = (auto_state.rtl_land_seq_initial_loc.alt - auto_state.rtl_land_seq_last_wp.alt) / 100;    // cm -> m
+            const float H = (auto_state.rtl_land_seq_initial_loc.alt - home.alt) / 100;    // cm -> m
             float h = (A-B)/MAX(A, 1)*H;
 //            flex_prev_WP_loc.alt = h*100 + home.alt;
-            flex_prev_WP_loc.alt = h*100 + auto_state.rtl_land_seq_last_wp.alt;
-            if (flex_prev_WP_loc.alt < auto_state.rtl_land_seq_last_wp.alt) {
-                flex_prev_WP_loc.alt = auto_state.rtl_land_seq_last_wp.alt;
+            flex_prev_WP_loc.alt = h*100 + home.alt;
+            if (flex_prev_WP_loc.alt < home.alt) {
+                flex_prev_WP_loc.alt = home.alt;
             }
             set_offset_altitude_location(loiter.start_point, flex_prev_WP_loc);
         }

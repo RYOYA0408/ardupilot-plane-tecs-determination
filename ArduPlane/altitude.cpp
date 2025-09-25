@@ -295,9 +295,6 @@ int32_t Plane::relative_target_altitude_cm(void)
 #endif
     int32_t relative_alt = target_altitude.amsl_cm - home.alt;
     relative_alt += mission_alt_offset()*100;
-#if AP_RANGEFINDER_ENABLED
-    relative_alt += rangefinder_correction() * 100;
-#endif
     return relative_alt;
 }
 

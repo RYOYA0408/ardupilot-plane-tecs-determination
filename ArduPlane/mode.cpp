@@ -197,10 +197,6 @@ void Mode::update_target_altitude()
             plane.auto_state.wp_proportion_offset = 0;
         }
         plane.landing.setup_landing_glide_slope(plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.target_altitude.offset_cm);
-#if AP_RANGEFINDER_ENABLED
-        plane.auto_state.wp_distance = plane.prev_WP_loc.get_distance(plane.next_WP_loc);
-        plane.landing.adjust_landing_slope_for_rangefinder_bump(plane.rangefinder_state, plane.prev_WP_loc, plane.next_WP_loc, plane.current_loc, plane.auto_state.wp_distance, plane.target_altitude.offset_cm);
-#endif
     } else if (plane.landing.get_target_altitude_location(target_location)) {
         if (plane.auto_state.target_altitude_update_no != 3) {
             plane.auto_state.target_altitude_update_no = 3;

@@ -253,6 +253,40 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_OPTIONS", 24, AP_Baro, _options, 0),
 #endif
+
+    // @Param: 1_CP
+    // @DisplayName: pressure coefficient
+    // @Description: User provided pressure coefficient. This parameter is a pressure coefficient used to compensate for the reduction in cabin static pressure caused by airspeed effects. It takes a negative value when cabin static pressure decreases during flight. The user must adjust this parameter so that barometric altitude matches GPS altitude.
+    // @Units: -
+    // @Range: -1 1
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("1_CP", 26, AP_Baro, sensors[0].cp, 0),
+
+#if BARO_MAX_INSTANCES > 1
+    // @Param: 2_CP
+    // @DisplayName: pressure coefficient
+    // @Description: User provided pressure coefficient. This parameter is a pressure coefficient used to compensate for the reduction in cabin static pressure caused by airspeed effects. It takes a negative value when cabin static pressure decreases during flight. The user must adjust this parameter so that barometric altitude matches GPS altitude.
+    // @Units: -
+    // @Range: -1 1
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("2_CP", 27, AP_Baro, sensors[1].cp, 0),
+#endif
+
+#if BARO_MAX_INSTANCES > 2
+    // @Param: 3_CP
+    // @DisplayName: pressure coefficient
+    // @Description: User provided pressure coefficient. This parameter is a pressure coefficient used to compensate for the reduction in cabin static pressure caused by airspeed effects. It takes a negative value when cabin static pressure decreases during flight. The user must adjust this parameter so that barometric altitude matches GPS altitude.
+    // @Units: -
+    // @Range: -1 1
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("3_CP", 28, AP_Baro, sensors[2].cp, 0),
+#endif
+
+#if BARO_MAX_INSTANCES > 2
+#endif
     
     AP_GROUPEND
 };
@@ -472,6 +506,32 @@ float AP_Baro::get_external_temperature(const uint8_t instance) const
     // reporting a high temperature will cause the aircraft to
     // estimate itself as flying higher then it actually is.
     return MIN(get_temperature(instance), INTERNAL_TEMPERATURE_CLAMP);
+}
+
+
+/*
+  get the airspeed in [m/s] to be used for altitude compensation purposes
+ */
+float AP_Baro::get_airspeed(void) const
+{
+#if AP_AIRSPEED_ENABLED
+    AP_Airspeed *airspeed = AP_Airspeed::get_singleton();
+    if (airspeed != nullptr) {
+        float aspeed = -1.0;
+        if (airspeed->healthy()) {
+            aspeed = airspeed->get_airspeed();
+            if (aspeed > 0){
+                return aspeed;
+            }
+            else{
+                return 0;
+            }
+        }
+    }
+#endif
+    
+    // if we don't have an airspeed sensor then return 0.
+    return 0;
 }
 
 

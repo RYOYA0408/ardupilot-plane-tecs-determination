@@ -56,10 +56,18 @@ float AP_Baro::get_altitude_difference_simple(float base_pressure, float pressur
     float ret;
     float temp_K = C_TO_KELVIN(get_ground_temperature());
     float scaling = pressure / base_pressure;
+    float h, p_inf, hr, h_correction, arsp;
+    const float cp = get_cp();
+    const float R_air = 287.0f;
 
     // This is an exact calculation that is within +-2.5m of the standard
     // atmosphere tables in the troposphere (up to 11,000 m amsl).
-    ret = 153.8462f * temp_K * (1.0f - expf(0.190259f * logf(scaling)));
+    h = 153.8462f * temp_K * (1.0f - expf(0.190259f * logf(scaling)));
+    arsp = get_airspeed();
+    p_inf = pressure / (1.0f + arsp*arsp/2.0f/R_air/temp_K*cp);
+    h_correction = 153.8462f * temp_K * (1.0f - expf(0.190259f * logf(p_inf/base_pressure)));
+    hr = constrain_float(1.0f/50.0f*h, 0, 1.0f);
+    ret = (1.0 - hr) * h + hr * h_correction;
 
     return ret;
 }
@@ -157,8 +165,13 @@ float AP_Baro::get_temperature_by_altitude_layer(float alt, int8_t idx)
 /*
   return geometric altitude (m) given a pressure (Pa)
 */
-float AP_Baro::get_altitude_from_pressure(float pressure) const
+float AP_Baro::get_altitude_from_pressure(float pressure, float cp) const
 {
+    const float R_air = 287.0f;
+    const float arsp = get_airspeed();
+    const float temp_K = C_TO_KELVIN(get_ground_temperature());
+    pressure = pressure / (1.0f + arsp*arsp/2.0f/R_air/temp_K*cp);
+
     const uint8_t idx = find_atmosphere_layer_by_pressure(pressure);
     const float pressure_ratio = pressure / atmospheric_1976_consts[idx].pressure_Pa;
 
@@ -263,9 +276,15 @@ float AP_Baro::get_EAS2TAS_for_alt_amsl(float alt_amsl)
 float AP_Baro::get_altitude_difference(float base_pressure, float pressure) const
 {
 #if AP_BARO_1976_STANDARD_ATMOSPHERE_ENABLED
-    const float alt1 = get_altitude_from_pressure(base_pressure);
-    const float alt2 = get_altitude_from_pressure(pressure);
-    return alt2 - alt1;
+    float h, h_correction, hr, ret;
+    const float alt1 = get_altitude_from_pressure(base_pressure, 0);
+    const float alt2 = get_altitude_from_pressure(pressure, 0);
+    const float alt2c = get_altitude_from_pressure(pressure, get_cp());
+    h = alt2 - alt1;
+    h_correction = alt2c - alt1;
+    hr = constrain_float(1.0f/50.0f*alt1, 0, 1.0f);
+    ret = (1.0 - hr) * h + hr * h_correction;
+    return ret;
 #else
     return get_altitude_difference_simple(base_pressure, pressure);
 #endif

@@ -109,7 +109,7 @@ public:
     static float geopotential_alt_to_geometric(float alt);
 
     float get_temperature_from_altitude(float alt) const;
-    float get_altitude_from_pressure(float pressure) const;
+    float get_altitude_from_pressure(float pressure, float cp) const;
 
     // EAS2TAS for SITL
     static float get_EAS2TAS_for_alt_amsl(float alt_amsl);
@@ -158,6 +158,10 @@ public:
     float get_ground_pressure(void) const { return get_ground_pressure(_primary); }
     float get_ground_pressure(uint8_t i)  const { return sensors[i].ground_pressure.get(); }
 
+    // pressure coefficient
+    float get_cp(void) const { return get_cp(_primary); }
+    float get_cp(uint8_t i)  const { return sensors[i].cp.get(); }
+
     // set the temperature to be used for altitude calibration. This
     // allows an external temperature source (such as a digital
     // airspeed sensor) to be used as the temperature source
@@ -172,6 +176,8 @@ public:
 
     float get_external_temperature(void) const { return get_external_temperature(_primary); };
     float get_external_temperature(const uint8_t instance) const;
+
+    float get_airspeed(void) const;
 
     // Set the primary baro
     void set_primary_baro(uint8_t primary) { _primary_baro.set_and_save(primary); };
@@ -289,6 +295,7 @@ private:
         float temperature;              // temperature in degrees C
         float altitude;                 // calculated altitude
         AP_Float ground_pressure;
+        AP_Float cp;                    // pressure coefficient
         float p_correction;
         baro_type_t type;               // 0 for air pressure (default), 1 for water pressure
         bool healthy;                   // true if sensor is healthy

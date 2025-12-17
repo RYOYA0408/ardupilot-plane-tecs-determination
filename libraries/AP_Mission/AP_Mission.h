@@ -441,6 +441,7 @@ public:
                 type_specific_bits |= (1U << 1);
             }
             uint8_t t = MIN(255, turns);
+            p1 &= 0xff00;
             p1 |= t;    
         }
         float get_loiter_radius(void) const {

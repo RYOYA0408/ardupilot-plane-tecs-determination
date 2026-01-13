@@ -521,6 +521,9 @@ void AP_TECS::_update_speed_demand(void)
 
 void AP_TECS::_update_height_demand(void)
 {
+    // Disable the sink-side safety scaler for TECSTuning
+    _max_sink_scaler = 1.0f;
+
     _climb_rate_limit = _maxClimbRate * _max_climb_scaler;
     _sink_rate_limit = _maxSinkRate * _max_sink_scaler;
     if (_maxSinkRate_approach > 0 && _flags.is_doing_auto_land) {

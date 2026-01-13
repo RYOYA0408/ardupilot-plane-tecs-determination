@@ -191,18 +191,45 @@ void Plane::takeoff_calc_pitch(void)
             TECS_controller.set_pitch_min(0.01f*nav_pitch_cd);
             TECS_controller.set_pitch_max(0.01f*nav_pitch_cd);
             return;
-        } else if (gps.ground_speed() <= (float)aparm.airspeed_cruise) {
-            // If rotate speed applied, gradually transition from TKOFF_GND_PITCH to the climb angle.
-            // This is recommended for ground takeoffs, so delay rotation until ground speed indicates adequate airspeed.
-            const uint16_t min_pitch_cd = 500; // Set a minimum of 5 deg climb angle.
-            nav_pitch_cd = (gps.ground_speed() / (float)aparm.airspeed_cruise) * auto_state.takeoff_pitch_cd;
-            nav_pitch_cd = constrain_int32(nav_pitch_cd, min_pitch_cd, auto_state.takeoff_pitch_cd); 
-            TECS_controller.set_pitch_min(0.01f*nav_pitch_cd);
-            TECS_controller.set_pitch_max(0.01f*nav_pitch_cd);
-            return;
+        }
+        // 一度でも Vrotate を超えたら rotation_complete
+        auto_state.rotation_complete = true;
+    }
+    // 回転後の処理
+    // EAS / AIRSPEED_CRUISE × takeoff_pitch_cd でピッチを動的に変更
+    const float v_ref = (float)aparm.airspeed_cruise;          // 巡航速度 [m/s]
+    const int16_t pitch_max_cd = auto_state.takeoff_pitch_cd;  // TKOFF コマンドで指定したピッチ上限
+    int16_t pitch_min_cd = 500;                                // 最低 5 deg はクライム
+
+    float eas = 0.0f;
+    bool have_eas = ahrs.airspeed_estimate(eas);
+
+    if (!have_eas || v_ref <= 0.0f) {
+        // 速度を取得できないときは単純に TKOFF ピッチで上昇
+        nav_pitch_cd = pitch_max_cd;
+    } else {
+        // 単純な比率スケーリングでピッチ角を動的に変更
+        float pitch_f_cd = (eas / v_ref) * (float)pitch_max_cd;
+        nav_pitch_cd = (int32_t)pitch_f_cd;
+        nav_pitch_cd = constrain_int32(nav_pitch_cd, (int32_t)pitch_min_cd, (int32_t)pitch_max_cd);
+    }
+    /*
+        else {
+            float eas = 0.0f;
+            ahrs.airspeed_estimate(eas);
+            if (eas < (float)aparm.airspeed_cruise + 2.0f) {
+                // If rotate speed applied, gradually transition from TKOFF_GND_PITCH to the climb angle.
+                // This is recommended for ground takeoffs, so delay rotation until ground speed indicates adequate airspeed.
+                const uint16_t min_pitch_cd = 500; // Set a minimum of 5 deg climb angle.
+                nav_pitch_cd = (eas / (float)aparm.airspeed_cruise) * auto_state.takeoff_pitch_cd;
+                nav_pitch_cd = constrain_int32(nav_pitch_cd, min_pitch_cd, auto_state.takeoff_pitch_cd); 
+                TECS_controller.set_pitch_min(0.01f*nav_pitch_cd);
+                TECS_controller.set_pitch_max(0.01f*nav_pitch_cd);
+                return;
+            }
         }
     }
-    auto_state.rotation_complete = true;
+    //auto_state.rotation_complete = true;
 
     // We are now past the rotation.
     // Initialize pitch limits for TECS.
@@ -222,7 +249,7 @@ void Plane::takeoff_calc_pitch(void)
 
         pitch_clipped_max = true;
     }
-
+    */
     // Check if we have trouble with roll control.
     if (aparm.stall_prevention != 0) {
         // during takeoff we want to prioritise roll control over
@@ -239,9 +266,13 @@ void Plane::takeoff_calc_pitch(void)
             pitch_min_cd = nav_pitch_cd;
         }
     }
+    /*
     // Notify TECS about the external pitch setting, for the next iteration.
     TECS_controller.set_pitch_min(0.01f*pitch_min_cd);
     if (pitch_clipped_max) {TECS_controller.set_pitch_max(0.01f*nav_pitch_cd);}
+    */
+    TECS_controller.set_pitch_min(0.01f*nav_pitch_cd);
+    TECS_controller.set_pitch_max(0.01f*nav_pitch_cd);
 }
 
 /*

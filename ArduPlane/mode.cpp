@@ -1,4 +1,7 @@
 #include "Plane.h"
+#include <AP_Scripting/AP_Scripting.h>
+// ミッション番号を保持するための static 変数
+static uint16_t last_nav_index_for_alt = UINT16_MAX;
 
 Mode::Mode() :
     ahrs(plane.ahrs)
@@ -284,6 +287,35 @@ void Mode::update_target_altitude()
         }
 //        plane.set_target_altitude_location(plane.next_WP_loc);
     }
+#if AP_SCRIPTING_ENABLED
+    // AUTO モードかつ TECS Tuning(SCR_USER6==1)のときだけ, 有効
+    if (this == &plane.mode_auto) {
+        bool tecs_tune_active = false;
+        if (AP_Scripting *script_mgr = AP::scripting()) {
+        if (script_mgr->enabled()) {
+            // SCR_USER6 は _user[5] に対応
+            const float scr_user6 = script_mgr->_user[5].get();
+            tecs_tune_active = (scr_user6 > 0.5f);  // 1.0 なら true
+        }
+    }
+    // 現在のミッションインデックスを取得
+    const uint16_t current_index = plane.mission.get_current_nav_index();
+    bool index_changed = false;
+    if (last_nav_index_for_alt != UINT16_MAX &&
+        current_index != last_nav_index_for_alt) {
+            index_changed = true;
+        }
+    last_nav_index_for_alt = current_index;
+    if (tecs_tune_active &&
+        index_changed &&
+        !plane.landing.is_flaring() &&
+        !plane.landing.is_on_approach() &&
+        !plane.auto_state.checked_for_autoland) {
+            plane.set_target_altitude_location(plane.next_WP_loc);
+            plane.reset_offset_altitude();
+        }
+    }
+#endif
 }
 
 // returns true if the vehicle can be armed in this mode

@@ -16,7 +16,7 @@ local thr_min = 10                              -- 最小スロットル率 Phas
 local thr_max = 100                             -- 最大スロットル率
 local temp_thr_min = 10                         -- Phase 4 用の一時的な最小スロットル率（上昇前の速度調整を柔軟にするため）
 local temp_thr_slr = 20                         -- Phase 5 用の一時的なスロットルスルーレート
---local ttc = 5.0                                 -- Phase5用の TECS_TIME_CONST
+local ttc = 5.0                                 -- Phase5用の TECS_TIME_CONST
 
 -- MissionPlanner 関連の定義 (Plan name : 2025.06.26_TecsTuning_and_LAND_develop_4.6.0.waypoints)
 --local last_nav_index = -1         -- -1 : 前回のミッションインデックス記録用 (初期化用変数, 数字には意味無い)
@@ -639,10 +639,10 @@ function tecstuning(sw)
             -- 減速回数を加算
             decel_cnt = decel_cnt + 1
             gcs:send_text(6, string.format("Deceleration Count: %d", decel_cnt))
-            -- 速度指令値が15 m/s になった瞬間強制的にPhase2へ
+            -- 速度指令値が decel_arspd_min になった瞬間強制的にPhase2へ
             if arspd_cmd == decel_arspd_min then
                 -- "現在のインデックス"のトリム速度設定値に対して 20 % 大きい値を arspd_min と決定 を廃止
-                -- "現在のインデックス"のトリム速度設定値 を arspd_min と決定
+                -- "現在のインデックスに対して1つ前"のトリム速度設定値 を arspd_min と決定
                 local arspd_min_idx = math.max(1, decel_cnt)
                 --local arspd_min = decel_arspd_table[arspd_min_idx] * 1.20
                 local arspd_min = decel_arspd_table[arspd_min_idx]
@@ -712,17 +712,26 @@ function tecstuning(sw)
 
             -- 任意時間以上, 定常性を確保できなかった場合, AIRSPEED_MIN を決定
             --if (decel_time >= decel_timeout or decel_cnt >= total_decel_cnt) and throttle_now <= 20 then
-            if decel_time >= decel_timeout and throttle_now <= 20 and throttle_now >= 10 then
-                -- "現在のインデックス"のトリム速度設定値に対して 20 % 大きい値を arspd_min と決定
-                local arspd_min_idx = math.max(1, decel_cnt)
-                local arspd_min = decel_arspd_table[arspd_min_idx] * 1.20
+            --if decel_time >= decel_timeout and throttle_now <= 20 and throttle_now >= 10 then
+            if decel_time >= decel_timeout then
+                -- "現在のインデックス"のトリム速度設定値に対して 20 % 大きい値を arspd_min と決定 を廃止
+                -- "現在のインデックスに対して1つ前"のトリム速度設定値 を arspd_min と決定
+                local arspd_min_idx = math.max(1, decel_cnt - 1)
+                local arspd_min = decel_arspd_table[arspd_min_idx]
                 if arspd_min >= arspd_cruise then
                     arspd_min = arspd_cruise
                     gcs:send_text(0, string.format("Phase 1 Abnormal Termination"))
                 end
-                -- GCS へ結果を送信
-                gcs:send_text(6, string.format("AIRSPEED_MIN get to %.2f m/s", arspd_min))
-                param:set_and_save("AIRSPEED_MIN", arspd_min)
+                if throttle_now <= 20 and throttle_now >= 10 then
+                    -- GCS へ結果を送信
+                    gcs:send_text(6, string.format("AIRSPEED_MIN get to %.2f m/s", arspd_min))
+                    param:set_and_save("AIRSPEED_MIN", arspd_min)
+                else
+                    -- GCS へ結果を送信
+                    gcs:send_text(6, "Forcing Phase 1 Time out")
+                    gcs:send_text(6, string.format("AIRSPEED_MIN get to %.2f m/s", arspd_min))
+                    param:set_and_save("AIRSPEED_MIN", arspd_min)
+                end
                 -- 次フェーズのためのパラメータ設定
                 phase2_set_param()
                 tecstune_phase = 2
@@ -771,7 +780,7 @@ function tecstuning(sw)
         -- 加速遷移 transition 確認
         if acceleration_sw and not accel_transition then
             local accel_err = math.abs(arspd_cmd - arspd_now)
-            if accel_err < arspd_margin and arspd_now > arspd_cmd then
+            if accel_err < arspd_margin and arspd_now >= arspd_cmd then
                 -- 開始時刻を記録 & 速度変更フラグを true
                 accel_start_ts = millis():tofloat()
                 gcs:send_text(6, "Acceleration Transition Complete")
@@ -811,13 +820,20 @@ function tecstuning(sw)
             end
 
             -- 任意時間以上, 定常性を確保できなかった場合, AIRSPEED_MAX を決定
-            if (accel_time >= accel_timeout or accel_cnt >= total_accel_cnt) and throttle_now >= 90 then
+            if (accel_time >= accel_timeout or accel_cnt >= total_accel_cnt) then
                 -- "1つ前のインデックス"のトリム速度設定値を arspd_max と決定
                 local arspd_max_idx = math.max(1, accel_cnt - 1)
                 local arspd_max = accel_arspd_table[arspd_max_idx]
-                -- GCS へ結果を送信
-                gcs:send_text(6, string.format("AIRSPEED_MAX get to %.2f m/s", arspd_max))
-                param:set_and_save("AIRSPEED_MAX", arspd_max)
+                if throttle_now >= 90 then
+                    -- GCS へ結果を送信
+                    gcs:send_text(6, string.format("AIRSPEED_MAX get to %.2f m/s", arspd_max))
+                    param:set_and_save("AIRSPEED_MAX", arspd_max)
+                else
+                    -- GCS へ結果を送信
+                    gcs:send_text(6, "Forcing Phase 2 Time out")
+                    gcs:send_text(6, string.format("AIRSPEED_MAX get to %.2f m/s", arspd_max))
+                    param:set_and_save("AIRSPEED_MAX", arspd_max)
+                end
                 
                 -- 次フェーズのためのパラメータ設定
                 phase2_5_set_param()
